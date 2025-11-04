@@ -12,13 +12,13 @@ const Welcome = () => {
       
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
         <div className="bg-white rounded-2xl shadow-lg p-8 md:p-12">
-          {/* Welcome Header */}
+          {/* Header */}
           <div className="text-center mb-12">
             <h1 className="text-4xl md:text-5xl font-bold text-gray-900 mb-4">
-              Welcome, {proposalData.client.name}
+              Proposal
             </h1>
             <p className="text-xl text-gray-600 max-w-2xl mx-auto">
-              Thanks for taking the time to review your Ignite proposal for {proposalData.client.company}.
+              Proposal created for {proposalData.client.company}
             </p>
           </div>
 
