@@ -3,7 +3,7 @@
 
 export const proposalData = {
   client: {
-    name: "Joel Reeves",
+    name: "Joel Gulick",
     company: "BusinessPoint Law",
     contactEmail: "joel@businesspointlaw.com"
   },

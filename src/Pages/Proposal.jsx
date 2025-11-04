@@ -22,18 +22,18 @@ const Proposal = () => {
     <div className={`min-h-screen ${isApproved ? 'opacity-75' : ''}`}>
       {/* Hero / Header Layer */}
       <HeroHeader
-        clientName={proposalData.client.name}
         companyName={proposalData.client.company}
         dateIssued={proposalData.proposal.dateIssued}
         duration={proposalData.proposal.duration}
         status={proposalData.proposal.status}
+        purposeHeadline={proposalData.purpose.headline}
       />
 
       {/* Purpose Section */}
       <PurposeSection purpose={proposalData.purpose} />
 
       {/* Scope of Work - Phase Cards */}
-      <section className="py-16 px-4 sm:px-6 lg:px-8 bg-gray-50">
+      <section id="scope-of-work" className="py-16 px-4 sm:px-6 lg:px-8 bg-gray-50">
         <div className="max-w-6xl mx-auto">
           <h2 className="text-3xl md:text-4xl font-bold text-gray-900 mb-12 text-center">
             Scope of Work
@@ -47,7 +47,7 @@ const Proposal = () => {
       </section>
 
       {/* Compensation Section */}
-      <section className="py-16 px-4 sm:px-6 lg:px-8 bg-white">
+      <section id="compensation" className="py-16 px-4 sm:px-6 lg:px-8 bg-white">
         <div className="max-w-6xl mx-auto">
           <div className="grid md:grid-cols-2 gap-8 items-start">
             <div>
@@ -69,11 +69,13 @@ const Proposal = () => {
       </section>
 
       {/* Interactive Timeline */}
-      <InteractiveTimeline
-        timeline={proposalData.timeline}
-        onMilestoneHover={setHoveredWeek}
-        hoveredWeek={hoveredWeek}
-      />
+      <div id="timeline">
+        <InteractiveTimeline
+          timeline={proposalData.timeline}
+          onMilestoneHover={setHoveredWeek}
+          hoveredWeek={hoveredWeek}
+        />
+      </div>
 
       {/* CLE Spotlight Section */}
       <CLESpotlight cleData={proposalData.cleInitiative} />
