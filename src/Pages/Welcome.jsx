@@ -1,7 +1,7 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import Navigation from '../Components/Navigation';
-import { mockClientData } from '../data/mockData';
+import { proposalData } from '../data/mockData';
 
 const Welcome = () => {
   const navigate = useNavigate();
@@ -15,10 +15,10 @@ const Welcome = () => {
           {/* Welcome Header */}
           <div className="text-center mb-12">
             <h1 className="text-4xl md:text-5xl font-bold text-gray-900 mb-4">
-              Welcome, {mockClientData.clientName}
+              Welcome, {proposalData.client.name}
             </h1>
             <p className="text-xl text-gray-600 max-w-2xl mx-auto">
-              Thanks for taking the time to review your Ignite proposal.
+              Thanks for taking the time to review your Ignite proposal for {proposalData.client.company}.
             </p>
           </div>
 

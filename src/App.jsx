@@ -12,6 +12,7 @@ const App = () => (
     <Routes>
       <Route path="/" element={<Welcome />} />
       <Route path="/proposal" element={<Proposal />} />
+      <Route path="/proposal/:engagementId" element={<Proposal />} />
       <Route path="/timeline" element={<Timeline />} />
       <Route path="/how-we-work" element={<HowWeWork />} />
     </Routes>
@@ -19,4 +20,3 @@ const App = () => (
 );
 
 export default App;
-
