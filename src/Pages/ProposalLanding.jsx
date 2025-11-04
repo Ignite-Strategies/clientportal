@@ -20,7 +20,7 @@ const ProposalLanding = () => {
           {/* Header */}
           <div className="mb-8">
             <h1 className="text-3xl font-bold text-gray-900 mb-3">
-              Ignite × {proposalData.client.company} — Foundation & Growth Proposal
+              Proposal for Scope of Work
             </h1>
             <p className="text-lg text-gray-600 mb-4">
               {proposalData.proposal.duration} Program · ${proposalData.proposal.total.toLocaleString()} Total · {proposalData.payments.length} Payments of ${proposalData.payments[0].amount.toLocaleString()}
@@ -52,7 +52,7 @@ const ProposalLanding = () => {
                 onClick={() => navigate('/proposal')}
                 className="text-[#f97316] font-medium hover:bg-gradient-to-r hover:from-rose-500 hover:to-amber-400 hover:bg-clip-text hover:text-transparent inline-flex items-center transition-all"
               >
-                View Foundation →
+                View Proposal →
               </button>
             </div>
 
