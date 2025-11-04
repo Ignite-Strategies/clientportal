@@ -20,7 +20,7 @@ const ProposalLanding = () => {
           {/* Header */}
           <div className="mb-8">
             <h1 className="text-3xl font-bold text-gray-900 mb-3">
-              Proposal for Scope of Work
+              Foundation Setting Growth Proposal for {proposalData.client.company}
             </h1>
             <p className="text-lg text-gray-600 mb-4">
               {proposalData.proposal.duration} Program · ${proposalData.proposal.total.toLocaleString()} Total · {proposalData.payments.length} Payments of ${proposalData.payments[0].amount.toLocaleString()}
