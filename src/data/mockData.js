@@ -175,3 +175,61 @@ export const proposalData = {
     deliverable: "25-Slide CLE Deck: \"NDAs Demystified\" + CLE Landing Page for Registration"
   }
 };
+
+// Legacy exports for backward compatibility with Timeline and HowWeWork pages
+export const mockTimelineData = {
+  totalDuration: proposalData.proposal.duration,
+  milestones: proposalData.timeline.map((item, index) => ({
+    id: index + 1,
+    title: `${item.milestone} - Week ${item.week}`,
+    targetDate: new Date(Date.now() + (item.week * 7 * 24 * 60 * 60 * 1000)).toISOString().split('T')[0],
+    status: "Upcoming", // Options: "Completed", "In Progress", "Upcoming"
+    description: item.deliverable,
+    duration: "1 week"
+  }))
+};
+
+export const mockWorkingPrinciples = [
+  {
+    title: "Ownership",
+    description: "You own the work. We deliver strategic recommendations, and you have full visibility and control over decisions."
+  },
+  {
+    title: "Feedback Loop",
+    description: "Direct, transparent communication. If something needs to change, we address it immediately—no bureaucracy."
+  },
+  {
+    title: "Accountability",
+    description: "We move fast and transparently. This portal shows exactly where we are, what's done, and what's next."
+  },
+  {
+    title: "Transparency",
+    description: "All work, timelines, and progress are visible in this portal. No surprises, no hidden agendas."
+  }
+];
+
+export const mockTeamData = {
+  teamMembers: [
+    {
+      id: 1,
+      name: "Sarah Johnson",
+      role: "Strategy Lead",
+      avatar: "👩‍💼",
+      bio: "10+ years in brand strategy and positioning"
+    },
+    {
+      id: 2,
+      name: "Michael Chen",
+      role: "Research Director",
+      avatar: "👨‍🔬",
+      bio: "Expert in market research and competitive analysis"
+    },
+    {
+      id: 3,
+      name: "Emily Rodriguez",
+      role: "Client Success Manager",
+      avatar: "👩‍💻",
+      bio: "Your primary point of contact for questions and coordination"
+    }
+  ]
+};
