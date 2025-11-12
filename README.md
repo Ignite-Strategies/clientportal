@@ -1,134 +1,58 @@
-# Ignite Client Portal (MVP)
+# Ignite Client Portal
 
-A client-facing portal for presenting proposals and engagement experiences to prospective clients.
+**Separate Product** - Self-contained Next.js app for client-facing proposal and engagement portal.
 
-## Overview
+## Product Model
 
-This is a **front-end-only application** built with React, Vite, and Tailwind CSS. For the MVP, data is hardcoded but structured to easily integrate with the IgniteBDStack backend in the future.
+- **Standalone Product**: Can be sold independently or as an add-on to IgniteBD
+- **Self-Contained**: Has its own Next.js app, auth, and deployment
+- **Shared Database**: Uses the same Prisma schema and database as IgniteBD
+- **Client-Focused**: Clean UX focused on proposals, deliverables, and billing
 
-## Tech Stack
+## Architecture
 
-- **React 18** - UI framework
-- **Vite** - Build tool and dev server
-- **Tailwind CSS** - Styling
-- **React Router** - Client-side routing
-- **React Icons** - Icon library
+- **Next.js 14** - App Router
+- **Prisma** - Direct database access (shared DB with IgniteBD)
+- **Firebase Auth** - Client authentication
+- **Self-Contained** - Separate deployment, but shares database
 
-## Getting Started
+## Routes
 
-### Installation
+- `/splash` - Auth check (mirrors IgniteBD)
+- `/login` - Client login
+- `/welcome` - Welcome screen
+- `/dashboard` - Client portal dashboard (like growth dashboard)
+  - Foundational Work (scope of work, deliverables)
+  - Proposals
+  - Timeline
+  - Settings (billing, profile)
 
-```bash
-npm install
-```
+## Setup
 
-### Development
+1. Copy Prisma schema from IgniteBD (already done)
+2. Set up environment variables (use same DATABASE_URL as IgniteBD)
+3. Run migrations: `npx prisma migrate dev`
+4. Generate Prisma client: `npx prisma generate`
+5. Deploy separately
 
-```bash
-npm run dev
-```
+## Key Difference from IgniteBD
 
-The app will be available at `http://localhost:5173`
+- **IgniteBD**: BD tools for internal use (`/growth-dashboard`)
+- **Client Portal**: Client-facing engagement hub (`/dashboard`)
+- **Separate Products**: Can be sold independently
+- **Shared Database**: Same Prisma schema, same database
 
-### Build
+## Database Sharing
 
-```bash
-npm run build
-```
+Both apps use the same database:
+- Same `Proposal` table
+- Same `ConsultantDeliverable` table
+- Same `Company` and `Contact` tables
+- Client Portal reads/writes directly via Prisma
 
-### Preview Production Build
+## Deployment
 
-```bash
-npm run preview
-```
-
-## Project Structure
-
-```
-ignite-clientportal/
-├── src/
-│   ├── Components/
-│   │   └── Navigation.jsx          # Main navigation component
-│   ├── Pages/
-│   │   ├── Welcome.jsx             # Welcome/Intro page
-│   │   ├── Proposal.jsx            # Proposal overview page
-│   │   ├── Timeline.jsx            # Timeline & Execution page
-│   │   └── HowWeWork.jsx           # How We'll Work Together page
-│   ├── data/
-│   │   └── mockData.js             # Hardcoded data (ready for API integration)
-│   ├── App.jsx                     # Main app component with routing
-│   ├── main.jsx                    # Entry point
-│   └── index.css                   # Global styles
-├── index.html
-├── package.json
-├── vite.config.js
-├── tailwind.config.js
-└── postcss.config.js
-```
-
-## Pages
-
-### 1. Welcome Page (`/`)
-- Landing page with client greeting
-- Overview of portal sections
-- Navigation cards to each section
-- "View Proposal" CTA button
-
-### 2. Proposal Page (`/proposal`)
-- Project details (name, description, scope)
-- Deliverables list
-- Pricing information
-- Status badge (Draft/Submitted/Approved)
-- Progress stepper (Proposal → Contract → Work Plan)
-- Action buttons (Approve/Request Changes) - placeholder for future backend integration
-
-### 3. Timeline & Execution Page (`/timeline`)
-- Vertical timeline of project milestones
-- Each milestone shows:
-  - Title
-  - Target date
-  - Status (Completed/In Progress/Upcoming)
-  - Duration
-  - Description
-- Project summary with key metrics
-
-### 4. How We'll Work Together Page (`/how-we-work`)
-- Main copy explaining portal access and collaboration
-- Working Principles section (4 principles)
-- Meet Your Team section with team member profiles
-- Portal access reminder
-
-## Data Structure
-
-All mock data is located in `src/data/mockData.js`. The structure is designed to match future API responses from the IgniteBDStack backend:
-
-- `mockClientData` - Client information
-- `mockProposalData` - Proposal details
-- `mockTimelineData` - Timeline and milestones
-- `mockTeamData` - Team member information
-- `mockWorkingPrinciples` - Working principles
-
-## Future Integration
-
-When ready to integrate with the IgniteBDStack backend:
-
-1. Replace `src/data/mockData.js` with API calls
-2. Use `engagementId` or `clientToken` from URL params or auth
-3. Create API service files in `src/api/` (similar to gofastfrontend-demo structure)
-4. Update components to use React hooks for data fetching (useState, useEffect)
-5. Add loading states and error handling
-
-## Design Notes
-
-- Clean, professional UI with subtle gradients
-- Responsive design (mobile-first approach)
-- Consistent color scheme using Ignite brand colors (blue palette)
-- Card-based layouts for visual hierarchy
-- Status badges and progress indicators for clarity
-
-## Notes
-
-- All action buttons (Approve, Request Changes) currently show alerts - these are placeholders for future backend integration
-- No authentication is implemented yet - this will be added when backend integration is complete
-- The portal is designed to be accessible via unique engagement ID or client token in the future
-
+Deploy as separate Next.js app:
+- Different domain/subdomain (e.g., `portal.ignitegrowth.biz`)
+- Same database connection
+- Independent scaling
