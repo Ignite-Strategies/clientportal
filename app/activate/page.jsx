@@ -33,6 +33,11 @@ function ActivateContent() {
           body: JSON.stringify({ token }),
         });
         
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({}));
+          throw new Error(errorData.error || `HTTP ${response.status}`);
+        }
+        
         const data = await response.json();
         
         if (data?.success) {
