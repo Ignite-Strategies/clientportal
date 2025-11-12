@@ -1,26 +1,10 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
-  <!-- Background circle -->
-  <defs>
-    <linearGradient id="handshakeGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" style="stop-color:#DC2626;stop-opacity:1" />
-      <stop offset="100%" style="stop-color:#B91C1C;stop-opacity:1" />
-    </linearGradient>
-  </defs>
-  <circle cx="50" cy="50" r="48" fill="url(#handshakeGrad)" stroke="#991B1B" stroke-width="2"/>
-  
-  <!-- Handshake icon -->
-  <g transform="translate(50, 50)">
-    <!-- Left hand -->
-    <path d="M -25 -8 L -20 -15 L -15 -10 L -10 -15 L -5 -10 L 0 -15 L 5 -10 L 10 -15 L 15 -10 L 20 -15 L 25 -8 L 25 2 L 20 7 L 15 2 L 10 7 L 5 2 L 0 7 L -5 2 L -10 7 L -15 2 L -20 7 Z" 
-          fill="white" opacity="0.95" transform="rotate(-15)"/>
-    
-    <!-- Right hand (mirrored) -->
-    <path d="M 25 -8 L 20 -15 L 15 -10 L 10 -15 L 5 -10 L 0 -15 L -5 -10 L -10 -15 L -15 -10 L -20 -15 L -25 -8 L -25 2 L -20 7 L -15 2 L -10 7 L -5 2 L 0 7 L 5 2 L 10 7 L 15 2 L 20 7 Z" 
-          fill="white" opacity="0.95" transform="rotate(15)"/>
-    
-    <!-- Connection/grip point -->
-    <circle cx="0" cy="0" r="4" fill="white" opacity="0.9"/>
-    <circle cx="-3" cy="-2" r="2" fill="#DC2626"/>
-    <circle cx="3" cy="-2" r="2" fill="#DC2626"/>
-  </g>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="#9ca3af" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+  <path d="M11 12h2a2 2 0 1 0 0-4h-3c-.6 0-1.1.2-1.4.6L3 14"/>
+  <path d="M7 18h1a2 2 0 0 0 0-4H5c-.6 0-1.1.2-1.4.6L3 14"/>
+  <path d="M13 12h2a2 2 0 1 1 0-4h-3c-.6 0-1.1.2-1.4.6L21 10"/>
+  <path d="M17 18h1a2 2 0 0 1 0-4h-3c-.6 0-1.1.2-1.4.6L21 10"/>
+  <path d="M3 14l4-4"/>
+  <path d="M21 10l-4 4"/>
+  <path d="M11 12l-2 2"/>
+  <path d="M13 12l2 2"/>
 </svg>

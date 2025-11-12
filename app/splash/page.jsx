@@ -10,8 +10,8 @@ export default function SplashPage() {
   const [fadeIn, setFadeIn] = useState(false);
 
   useEffect(() => {
-    // Fade in animation
-    setFadeIn(true);
+    // Smooth fade in animation
+    const fadeTimer = setTimeout(() => setFadeIn(true), 50);
 
     let unsubscribe;
     const timer = setTimeout(async () => {
@@ -39,10 +39,11 @@ export default function SplashPage() {
       } finally {
         setChecking(false);
       }
-    }, 1000); // 1 second fade in
+    }, 1000); // 1000ms delay
 
     return () => {
       clearTimeout(timer);
+      clearTimeout(fadeTimer);
       if (unsubscribe) {
         unsubscribe();
       }
@@ -50,30 +51,84 @@ export default function SplashPage() {
   }, [router]);
 
   return (
-    <div className={`min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-black flex items-center justify-center relative transition-opacity duration-1000 ${fadeIn ? 'opacity-100' : 'opacity-0'}`}>
-      {/* Powered by badge - top right */}
-      <div className="absolute top-6 right-6">
-        <p className="text-sm text-gray-400">
-          powered by <span className="font-semibold text-gray-300">IgniteStrategies</span>
-        </p>
-      </div>
-
-      <div className="text-center">
+    <div className={`min-h-screen bg-gradient-to-br from-black via-gray-900 to-gray-800 flex items-center justify-center relative transition-all duration-1000 ease-in-out ${fadeIn ? 'opacity-100' : 'opacity-0'}`}>
+      {/* Ignite logo - top right corner */}
+      <div className="absolute top-6 right-6 flex items-center gap-2">
         <Image
           src="/logo.png"
-          alt="Ignite Strategies"
-          width={128}
-          height={128}
-          className="mx-auto mb-8 h-32 w-32 object-contain"
+          alt="Ignite"
+          width={32}
+          height={32}
+          className="h-8 w-8 object-contain"
           priority
         />
+        <span className="text-sm font-semibold text-gray-300">Ignite</span>
+      </div>
+
+      {/* Handshake icon centered */}
+      <div className="text-center">
+        <div className="mb-8 flex justify-center">
+          <svg
+            className="h-24 w-24 text-gray-300"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+            xmlns="http://www.w3.org/2000/svg"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M11 12h2a2 2 0 1 0 0-4h-3c-.6 0-1.1.2-1.4.6L3 14"
+            />
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M7 18h1a2 2 0 0 0 0-4H5c-.6 0-1.1.2-1.4.6L3 14"
+            />
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M13 12h2a2 2 0 1 1 0-4h-3c-.6 0-1.1.2-1.4.6L21 10"
+            />
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M17 18h1a2 2 0 0 1 0-4h-3c-.6 0-1.1.2-1.4.6L21 10"
+            />
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M3 14l4-4"
+            />
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M21 10l-4 4"
+            />
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M11 12l-2 2"
+            />
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M13 12l2 2"
+            />
+          </svg>
+        </div>
         <h1 className="text-4xl font-bold text-white mb-2">
-          Welcome to Client Portal
+          Client Portal
         </h1>
-        <p className="text-xl text-gray-400 mb-4">
-          by Ignite Strategies
-        </p>
-        <p className="text-lg text-gray-500">
+        <p className="text-lg text-gray-400">
           Your engagement hub
         </p>
       </div>

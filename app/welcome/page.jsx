@@ -81,10 +81,21 @@ function WelcomeContent() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-red-600 via-red-700 to-red-800 flex items-center justify-center">
+      <div className="min-h-screen bg-gradient-to-br from-black via-gray-900 to-gray-800 flex items-center justify-center relative">
+        <div className="absolute top-6 right-6 flex items-center gap-2">
+          <Image
+            src="/logo.png"
+            alt="Ignite"
+            width={32}
+            height={32}
+            className="h-8 w-8 object-contain"
+            priority
+          />
+          <span className="text-sm font-semibold text-gray-300">Ignite</span>
+        </div>
         <div className="text-center">
-          <div className="animate-spin rounded-full h-16 w-16 border-b-4 border-white mx-auto mb-4" />
-          <p className="text-white text-xl">Loading your portal...</p>
+          <div className="animate-spin rounded-full h-16 w-16 border-b-4 border-gray-400 mx-auto mb-4" />
+          <p className="text-gray-300 text-xl">Loading your portal...</p>
         </div>
       </div>
     );
@@ -92,15 +103,26 @@ function WelcomeContent() {
 
   if (!hasAccess) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-red-600 via-red-700 to-red-800 flex items-center justify-center p-4">
-        <div className="bg-white rounded-2xl shadow-2xl p-8 max-w-md text-center">
-          <h1 className="text-2xl font-bold text-gray-900 mb-4">Access Required</h1>
-          <p className="text-gray-600 mb-6">
+      <div className="min-h-screen bg-gradient-to-br from-black via-gray-900 to-gray-800 flex items-center justify-center p-4 relative">
+        <div className="absolute top-6 right-6 flex items-center gap-2">
+          <Image
+            src="/logo.png"
+            alt="Ignite"
+            width={32}
+            height={32}
+            className="h-8 w-8 object-contain"
+            priority
+          />
+          <span className="text-sm font-semibold text-gray-300">Ignite</span>
+        </div>
+        <div className="bg-gray-900 border border-gray-700 rounded-2xl shadow-2xl p-8 max-w-md text-center">
+          <h1 className="text-2xl font-bold text-white mb-4">Access Required</h1>
+          <p className="text-gray-400 mb-6">
             You need a valid proposal link to access the client portal.
           </p>
           <button
             onClick={() => router.push('/login')}
-            className="rounded-lg bg-red-600 px-6 py-2 text-white font-semibold hover:bg-red-700"
+            className="rounded-lg bg-gray-700 hover:bg-gray-600 border border-gray-500 px-6 py-2 text-white font-semibold transition"
           >
             Back to Login
           </button>
@@ -110,30 +132,91 @@ function WelcomeContent() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-red-600 via-red-700 to-red-800 flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl shadow-2xl p-8 max-w-md text-center">
+    <div className="min-h-screen bg-gradient-to-br from-black via-gray-900 to-gray-800 flex items-center justify-center p-4 relative">
+      <div className="absolute top-6 left-6 flex items-center gap-2">
         <Image
           src="/logo.png"
-          alt="Ignite Strategies"
-          width={80}
-          height={80}
-          className="mx-auto mb-6 h-20 w-20 object-contain"
+          alt="Ignite"
+          width={32}
+          height={32}
+          className="h-8 w-8 object-contain"
           priority
         />
-        <h1 className="text-3xl font-bold text-gray-900 mb-2">
+        <span className="text-sm font-semibold text-gray-300">Ignite</span>
+      </div>
+      <div className="bg-gray-900 border border-gray-700 rounded-2xl shadow-2xl p-8 max-w-md text-center">
+        <div className="mb-6 flex justify-center">
+          <svg
+            className="h-16 w-16 text-gray-300"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+            xmlns="http://www.w3.org/2000/svg"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M11 12h2a2 2 0 1 0 0-4h-3c-.6 0-1.1.2-1.4.6L3 14"
+            />
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M7 18h1a2 2 0 0 0 0-4H5c-.6 0-1.1.2-1.4.6L3 14"
+            />
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M13 12h2a2 2 0 1 1 0-4h-3c-.6 0-1.1.2-1.4.6L21 10"
+            />
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M17 18h1a2 2 0 0 1 0-4h-3c-.6 0-1.1.2-1.4.6L21 10"
+            />
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M3 14l4-4"
+            />
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M21 10l-4 4"
+            />
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M11 12l-2 2"
+            />
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M13 12l2 2"
+            />
+          </svg>
+        </div>
+        <h1 className="text-3xl font-bold text-white mb-2">
           Welcome to Your Client Portal
         </h1>
         {proposal && (
-          <p className="text-gray-600 mb-2">
-            Engagement: <span className="font-semibold">{proposal.client?.company}</span>
+          <p className="text-gray-400 mb-2">
+            Engagement: <span className="font-semibold text-gray-300">{proposal.client?.company}</span>
           </p>
         )}
-        <p className="text-gray-600 mb-8">
+        <p className="text-gray-400 mb-8">
           View your proposals, track deliverables, and manage your engagement with Ignite Strategies.
         </p>
         <button
           onClick={handleContinue}
-          className="w-full rounded-lg bg-red-600 px-6 py-3 text-white font-semibold hover:bg-red-700 transition shadow-lg"
+          className="w-full rounded-lg bg-gray-700 hover:bg-gray-600 border border-gray-500 px-6 py-3 text-white font-semibold transition shadow-lg"
         >
           Continue to Dashboard →
         </button>
@@ -145,10 +228,10 @@ function WelcomeContent() {
 export default function WelcomePage() {
   return (
     <Suspense fallback={
-      <div className="min-h-screen bg-gradient-to-br from-red-600 via-red-700 to-red-800 flex items-center justify-center">
+      <div className="min-h-screen bg-gradient-to-br from-black via-gray-900 to-gray-800 flex items-center justify-center">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-16 w-16 border-b-4 border-white mx-auto mb-4" />
-          <p className="text-white text-xl">Loading...</p>
+          <div className="animate-spin rounded-full h-16 w-16 border-b-4 border-gray-400 mx-auto mb-4" />
+          <p className="text-gray-300 text-xl">Loading...</p>
         </div>
       </div>
     }>

@@ -56,48 +56,51 @@ export default function ClientPortalDashboard() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+      <div className="min-h-screen bg-gradient-to-br from-black via-gray-900 to-gray-800 flex items-center justify-center">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-16 w-16 border-b-4 border-red-600 mx-auto mb-4" />
-          <p className="text-gray-600 text-xl">Loading dashboard...</p>
+          <div className="animate-spin rounded-full h-16 w-16 border-b-4 border-gray-400 mx-auto mb-4" />
+          <p className="text-gray-300 text-xl">Loading dashboard...</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gradient-to-br from-black via-gray-900 to-gray-800">
       {/* Header */}
-      <header className="bg-white border-b border-gray-200">
+      <header className="bg-gray-900 border-b border-gray-700">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <Image
-                src="/logo.png"
-                alt="Ignite"
-                width={32}
-                height={32}
-                className="h-8 w-8 object-contain"
-              />
-              <h1 className="text-xl font-bold text-gray-900">Client Portal</h1>
-            </div>
-            <nav className="flex gap-4">
-              <button className="text-sm font-medium text-gray-700 hover:text-gray-900">
+            <h1 className="text-xl font-bold text-white">Client Portal</h1>
+            <div className="flex items-center gap-4">
+              <nav className="flex gap-4">
+              <button className="text-sm font-medium text-gray-300 hover:text-white">
                 Foundational Work
               </button>
-              <button className="text-sm font-medium text-gray-700 hover:text-gray-900">
+              <button className="text-sm font-medium text-gray-300 hover:text-white">
                 Proposals
               </button>
-              <button className="text-sm font-medium text-gray-700 hover:text-gray-900">
+              <button className="text-sm font-medium text-gray-300 hover:text-white">
                 Timeline
               </button>
               <button 
                 onClick={() => router.push('/settings')}
-                className="text-sm font-medium text-gray-700 hover:text-gray-900"
+                className="text-sm font-medium text-gray-300 hover:text-white"
               >
                 Settings
               </button>
-            </nav>
+              </nav>
+              <div className="flex items-center gap-2">
+                <Image
+                  src="/logo.png"
+                  alt="Ignite"
+                  width={32}
+                  height={32}
+                  className="h-8 w-8 object-contain"
+                />
+                <span className="text-sm font-semibold text-gray-300">Ignite</span>
+              </div>
+            </div>
           </div>
         </div>
       </header>
@@ -107,63 +110,63 @@ export default function ClientPortalDashboard() {
         {portalData && (
           <>
             <div className="mb-8">
-              <h2 className="text-2xl font-bold text-gray-900 mb-2">
+              <h2 className="text-2xl font-bold text-white mb-2">
                 Welcome, {portalData.client.name}
               </h2>
-              <p className="text-gray-600">{portalData.client.company}</p>
+              <p className="text-gray-400">{portalData.client.company}</p>
             </div>
 
             {/* Stats Cards */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-              <div className="bg-white rounded-lg shadow p-6">
-                <p className="text-sm text-gray-500 mb-1">Total Deliverables</p>
-                <p className="text-3xl font-bold text-gray-900">
+              <div className="bg-gray-900 border border-gray-700 rounded-lg p-6">
+                <p className="text-sm text-gray-400 mb-1">Total Deliverables</p>
+                <p className="text-3xl font-bold text-white">
                   {portalData.status.totalDeliverables}
                 </p>
               </div>
-              <div className="bg-white rounded-lg shadow p-6">
-                <p className="text-sm text-gray-500 mb-1">Completed</p>
-                <p className="text-3xl font-bold text-green-600">
+              <div className="bg-gray-900 border border-gray-700 rounded-lg p-6">
+                <p className="text-sm text-gray-400 mb-1">Completed</p>
+                <p className="text-3xl font-bold text-gray-300">
                   {portalData.status.completedDeliverables}
                 </p>
               </div>
-              <div className="bg-white rounded-lg shadow p-6">
-                <p className="text-sm text-gray-500 mb-1">Status</p>
-                <p className="text-3xl font-bold text-blue-600 capitalize">
+              <div className="bg-gray-900 border border-gray-700 rounded-lg p-6">
+                <p className="text-sm text-gray-400 mb-1">Status</p>
+                <p className="text-3xl font-bold text-gray-300 capitalize">
                   {portalData.status.overall}
                 </p>
               </div>
             </div>
 
             {/* Deliverables List */}
-            <div className="bg-white rounded-lg shadow">
-              <div className="p-6 border-b border-gray-200">
-                <h3 className="text-lg font-semibold text-gray-900">Foundational Work</h3>
-                <p className="text-sm text-gray-600">What we're delivering for you</p>
+            <div className="bg-gray-900 border border-gray-700 rounded-lg">
+              <div className="p-6 border-b border-gray-700">
+                <h3 className="text-lg font-semibold text-white">Foundational Work</h3>
+                <p className="text-sm text-gray-400">What we're delivering for you</p>
               </div>
               <div className="p-6">
                 {portalData.deliverables.length === 0 ? (
-                  <p className="text-gray-500 text-center py-8">No deliverables yet</p>
+                  <p className="text-gray-400 text-center py-8">No deliverables yet</p>
                 ) : (
                   <div className="space-y-4">
                     {portalData.deliverables.map((deliverable) => (
                       <div
                         key={deliverable.id}
-                        className="flex items-center justify-between p-4 border border-gray-200 rounded-lg"
+                        className="flex items-center justify-between p-4 border border-gray-700 rounded-lg bg-gray-800"
                       >
                         <div>
-                          <h4 className="font-semibold text-gray-900">{deliverable.title}</h4>
+                          <h4 className="font-semibold text-white">{deliverable.title}</h4>
                           {deliverable.category && (
-                            <p className="text-sm text-gray-500">{deliverable.category}</p>
+                            <p className="text-sm text-gray-400">{deliverable.category}</p>
                           )}
                         </div>
                         <span
                           className={`px-3 py-1 rounded-full text-xs font-semibold ${
                             deliverable.status === 'completed'
-                              ? 'bg-green-100 text-green-800'
+                              ? 'bg-gray-700 text-gray-300'
                               : deliverable.status === 'in-progress'
-                                ? 'bg-blue-100 text-blue-800'
-                                : 'bg-gray-100 text-gray-800'
+                                ? 'bg-gray-700 text-gray-300'
+                                : 'bg-gray-700 text-gray-400'
                           }`}
                         >
                           {deliverable.status}
