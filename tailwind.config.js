@@ -1,16 +1,16 @@
 /** @type {import('tailwindcss').Config} */
-export default {
+module.exports = {
   content: [
-    "./index.html",
-    "./src/**/*.{js,ts,jsx,tsx}",
+    './app/**/*.{js,ts,jsx,tsx,mdx}',
+    './components/**/*.{js,ts,jsx,tsx,mdx}',
   ],
   theme: {
     extend: {
       colors: {
-        'ignite': {
-          'primary': '#dc2626', // red-600
-          'secondary': '#ea580c', // orange-600
-          'accent': '#f87171', // red-400
+        ignite: {
+          primary: '#dc2626', // red-600
+          secondary: '#ea580c', // orange-600
+          accent: '#f87171', // red-400
         },
       },
       keyframes: {
@@ -25,5 +25,4 @@ export default {
     },
   },
   plugins: [],
-}
-
+};
