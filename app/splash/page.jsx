@@ -3,6 +3,7 @@
 import Image from 'next/image';
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { Handshake } from 'lucide-react';
 
 export default function SplashPage() {
   const router = useRouter();
@@ -68,62 +69,7 @@ export default function SplashPage() {
       {/* Handshake icon centered */}
       <div className="text-center">
         <div className="mb-8 flex justify-center">
-          <svg
-            className="h-24 w-24 text-gray-300"
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
-            xmlns="http://www.w3.org/2000/svg"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M11 12h2a2 2 0 1 0 0-4h-3c-.6 0-1.1.2-1.4.6L3 14"
-            />
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M7 18h1a2 2 0 0 0 0-4H5c-.6 0-1.1.2-1.4.6L3 14"
-            />
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M13 12h2a2 2 0 1 1 0-4h-3c-.6 0-1.1.2-1.4.6L21 10"
-            />
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M17 18h1a2 2 0 0 1 0-4h-3c-.6 0-1.1.2-1.4.6L21 10"
-            />
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M3 14l4-4"
-            />
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M21 10l-4 4"
-            />
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M11 12l-2 2"
-            />
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M13 12l2 2"
-            />
-          </svg>
+          <Handshake className="h-24 w-24 text-gray-300" strokeWidth={2} />
         </div>
         <h1 className="text-4xl font-bold text-white mb-2">
           Client Portal
