@@ -7,8 +7,12 @@ import { useRouter } from 'next/navigation';
 export default function SplashPage() {
   const router = useRouter();
   const [checking, setChecking] = useState(true);
+  const [fadeIn, setFadeIn] = useState(false);
 
   useEffect(() => {
+    // Fade in animation
+    setFadeIn(true);
+
     let unsubscribe;
     const timer = setTimeout(async () => {
       try {
@@ -35,7 +39,7 @@ export default function SplashPage() {
       } finally {
         setChecking(false);
       }
-    }, 2000);
+    }, 1000); // 1 second fade in
 
     return () => {
       clearTimeout(timer);
@@ -46,7 +50,7 @@ export default function SplashPage() {
   }, [router]);
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-black flex items-center justify-center relative">
+    <div className={`min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-black flex items-center justify-center relative transition-opacity duration-1000 ${fadeIn ? 'opacity-100' : 'opacity-0'}`}>
       {/* Powered by badge - top right */}
       <div className="absolute top-6 right-6">
         <p className="text-sm text-gray-400">
