@@ -40,7 +40,7 @@ export default function SplashPage() {
       } finally {
         setChecking(false);
       }
-    }, 1000); // 1000ms delay
+    }, 2500); // 2500ms delay - smoother transition
 
     return () => {
       clearTimeout(timer);
