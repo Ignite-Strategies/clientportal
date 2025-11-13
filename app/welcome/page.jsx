@@ -17,7 +17,21 @@ function WelcomeContent() {
 
   useEffect(() => {
     // Use onAuthStateChanged to wait for Firebase auth to initialize
+    let hasChecked = false;
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+      // Give Firebase a moment to propagate auth state after login
+      if (!firebaseUser && !hasChecked) {
+        // Wait a bit before redirecting - might be auth state propagation delay
+        setTimeout(() => {
+          if (!auth.currentUser && !hasChecked) {
+            router.replace('/login');
+          }
+        }, 500);
+        return;
+      }
+      
+      hasChecked = true;
+      
       if (!firebaseUser) {
         router.replace('/login');
         return;
