@@ -2,7 +2,7 @@
 
 import { useEffect, useState, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { auth } from '@/lib/firebase';
+import { auth, onAuthStateChanged } from '@/lib/firebase';
 import Image from 'next/image';
 import api from '@/lib/api';
 import { useClientPortalSession } from '@/lib/hooks/useClientPortalSession';
@@ -16,51 +16,55 @@ function WelcomeContent() {
   const [error, setError] = useState('');
 
   useEffect(() => {
-    const firebaseUser = auth.currentUser;
-    if (!firebaseUser) {
-      router.replace('/login');
-      return;
-    }
+    // Use onAuthStateChanged to wait for Firebase auth to initialize
+    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+      if (!firebaseUser) {
+        router.replace('/login');
+        return;
+      }
 
-    /**
-     * Step 1: Contact Lookup/Retrieval (First Hydration)
-     * - User is authenticated via Firebase
-     * - Lookup contact by firebaseUid
-     * - Store contact info for Step 2
-     */
-    const hydrateContact = async () => {
-      try {
-        // Step 1: Get contact by Firebase UID (CLIENT PORTAL ROUTE)
-        const contactResponse = await api.get(`/api/contacts/by-firebase-uid`);
-        
-        if (contactResponse.data?.success && contactResponse.data.contact) {
-          const contactData = contactResponse.data.contact;
-          setContact(contactData);
+      /**
+       * Step 1: Contact Lookup/Retrieval (First Hydration)
+       * - User is authenticated via Firebase
+       * - Lookup contact by firebaseUid
+       * - Store contact info for Step 2
+       */
+      const hydrateContact = async () => {
+        try {
+          // Step 1: Get contact by Firebase UID (CLIENT PORTAL ROUTE)
+          const contactResponse = await api.get(`/api/contacts/by-firebase-uid`);
           
-          // Store contact session using hook (foundation for everything else)
-          setContactSession({
-            contactId: contactData.id,
-            contactEmail: contactData.email || '',
-            firebaseId: firebaseUser.uid,
-            contactCompanyId: contactData.contactCompanyId || null,
-            companyName: contactData.contactCompany?.companyName || null,
-            companyHQId: contactData.crmId || null,
-          });
-          
-          setLoading(false);
-        } else {
-          setError('Contact not found. Please ensure your account is activated.');
+          if (contactResponse.data?.success && contactResponse.data.contact) {
+            const contactData = contactResponse.data.contact;
+            setContact(contactData);
+            
+            // Store contact session using hook (foundation for everything else)
+            setContactSession({
+              contactId: contactData.id,
+              contactEmail: contactData.email || '',
+              firebaseId: firebaseUser.uid,
+              contactCompanyId: contactData.contactCompanyId || null,
+              companyName: contactData.contactCompany?.companyName || null,
+              companyHQId: contactData.crmId || null,
+            });
+            
+            setLoading(false);
+          } else {
+            setError('Contact not found. Please ensure your account is activated.');
+            setLoading(false);
+          }
+        } catch (error) {
+          console.error('❌ Step 1: Contact hydration error:', error);
+          setError(error.response?.data?.error || 'Failed to load contact information.');
           setLoading(false);
         }
-      } catch (error) {
-        console.error('❌ Step 1: Contact hydration error:', error);
-        setError(error.response?.data?.error || 'Failed to load contact information.');
-        setLoading(false);
-      }
-    };
+      };
 
-    hydrateContact();
-  }, [router]);
+      hydrateContact();
+    });
+
+    return () => unsubscribe();
+  }, [router, setContactSession]);
 
   const handleContinue = () => {
     router.push('/dashboard');
