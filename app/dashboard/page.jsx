@@ -5,9 +5,11 @@ import { useRouter } from 'next/navigation';
 import { auth } from '@/lib/firebase';
 import Image from 'next/image';
 import api from '@/lib/api';
+import { useClientPortalSession } from '@/lib/hooks/useClientPortalSession';
 
 export default function ClientPortalDashboard() {
   const router = useRouter();
+  const { proposalId, setProposalId, contactSession, hasValidSession } = useClientPortalSession();
   const [loading, setLoading] = useState(true);
   const [portalData, setPortalData] = useState(null);
   const [contactRole, setContactRole] = useState(null);
@@ -20,15 +22,25 @@ export default function ClientPortalDashboard() {
       return;
     }
 
-    const loadDashboard = async () => {
+    /**
+     * Step 2: Company/Proposals Hydration (Second Hydration)
+     * - Contact is already loaded (from Step 1: Welcome)
+     * - Load company info and proposals using contactCompanyId
+     * - This is the full dashboard hydration
+     */
+    const hydrateCompanyAndProposals = async () => {
       try {
-        const contactId = localStorage.getItem('clientPortalContactId');
-        if (!contactId) {
-          router.replace('/login');
+        // Check if we have a valid session
+        if (!hasValidSession || !contactSession?.contactId) {
+          // No contact from Step 1 - redirect to welcome
+          router.replace('/welcome');
           return;
         }
 
-        // Get contact role to check if they're already an owner
+        const contactId = contactSession.contactId;
+        const contactCompanyId = contactSession.contactCompanyId;
+
+        // Step 2a: Get contact role (for elevation flow)
         try {
           const contactResponse = await api.get(`/api/contacts/by-firebase-uid`);
           if (contactResponse.data?.success && contactResponse.data.contact) {
@@ -38,32 +50,39 @@ export default function ClientPortalDashboard() {
           console.warn('Could not fetch contact role:', err);
         }
 
-        // Get proposalId or find proposals for this contact
-        let proposalId = localStorage.getItem('clientPortalProposalId');
-        
-        if (!proposalId) {
-          // Find proposals for this contact
-          const proposalsResponse = await api.get(`/api/contacts/${contactId}/proposals`);
-          if (proposalsResponse.data?.success && proposalsResponse.data.proposals?.length > 0) {
-            proposalId = proposalsResponse.data.proposals[0].id;
-            localStorage.setItem('clientPortalProposalId', proposalId);
-          }
-        }
+        // Step 2b: Load proposals using contactCompanyId
+        if (contactCompanyId) {
+          try {
+            // Find proposals for this contact's company
+            const proposalsResponse = await api.get(`/api/contacts/${contactId}/proposals`);
+            
+            if (proposalsResponse.data?.success && proposalsResponse.data.proposals?.length > 0) {
+              // Get first proposal or use stored one (foundation for everything else)
+              let currentProposalId = proposalId;
+              if (!currentProposalId) {
+                currentProposalId = proposalsResponse.data.proposals[0].id;
+                setProposalId(currentProposalId); // Store using hook
+              }
 
-        if (proposalId) {
-          const response = await api.get(`/api/proposals/${proposalId}/portal`);
-          if (response.data?.success) {
-            setPortalData(response.data.portalData);
+              // Load full portal data for this proposal
+              const portalResponse = await api.get(`/api/proposals/${currentProposalId}/portal`);
+              if (portalResponse.data?.success) {
+                setPortalData(portalResponse.data.portalData);
+              }
+            }
+          } catch (err) {
+            console.error('Error loading proposals:', err);
+            // Continue - show empty state
           }
         }
       } catch (error) {
-        console.error('Error loading dashboard:', error);
+        console.error('❌ Step 2: Company/Proposals hydration error:', error);
       } finally {
         setLoading(false);
       }
     };
 
-    loadDashboard();
+    hydrateCompanyAndProposals();
   }, [router]);
 
   const handlePromoteToOwner = async () => {

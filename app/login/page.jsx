@@ -5,6 +5,7 @@ import { useState, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Handshake, Eye, EyeOff } from 'lucide-react';
 import api from '@/lib/api';
+import { clientPortalStorage } from '@/lib/storage';
 
 function LoginForm() {
   const router = useRouter();
@@ -51,23 +52,27 @@ function LoginForm() {
       // Step 3: Get Firebase token (for API calls)
       const idToken = await result.user.getIdToken();
       
-      // Step 4: Find Contact by Firebase UID (Pattern B: Hydrate)
-      // This follows the architecture: Firebase UID → Contact lookup
+      // Step 4: Find Contact by Firebase UID (CLIENT PORTAL ROUTE)
+      // Architecture: Login → Contact Lookup → Welcome (Step 1) → Dashboard (Step 2)
       const contactResponse = await api.get(`/api/contacts/by-firebase-uid`);
       
       if (contactResponse.data?.success && contactResponse.data.contact) {
         const contact = contactResponse.data.contact;
         
-        // Store contact session
-        localStorage.setItem('clientPortalContactId', contact.id);
-        localStorage.setItem('clientPortalCompanyHQId', contact.crmId);
-        localStorage.setItem('clientPortalContactEmail', contact.email || credentials.username);
-        localStorage.setItem('firebaseId', firebaseUid);
+        // Store contact session using storage helper (foundation for everything else)
+        clientPortalStorage.setContactSession({
+          contactId: contact.id,
+          contactEmail: contact.email || credentials.username,
+          firebaseId: firebaseUid,
+          contactCompanyId: contact.contactCompanyId || null,
+          companyName: contact.contactCompany?.companyName || null,
+          companyHQId: contact.crmId || null,
+        });
         
         // Firebase token is automatically managed by axios interceptor
         // No need to store manually - axios will get fresh token on each request
         
-        // Redirect to welcome/dashboard
+        // Redirect to welcome (Step 1: Contact hydration)
         router.push('/welcome');
       } else {
         setError('Contact not found. Please ensure your account is activated.');

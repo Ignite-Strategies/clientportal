@@ -5,13 +5,15 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { auth } from '@/lib/firebase';
 import Image from 'next/image';
 import api from '@/lib/api';
+import { useClientPortalSession } from '@/lib/hooks/useClientPortalSession';
 
 function WelcomeContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { setContactSession } = useClientPortalSession();
   const [loading, setLoading] = useState(true);
-  const [hasAccess, setHasAccess] = useState(false);
-  const [proposal, setProposal] = useState(null);
+  const [contact, setContact] = useState(null);
+  const [error, setError] = useState('');
 
   useEffect(() => {
     const firebaseUser = auth.currentUser;
@@ -20,60 +22,45 @@ function WelcomeContent() {
       return;
     }
 
-    const checkAccess = async () => {
+    /**
+     * Step 1: Contact Lookup/Retrieval (First Hydration)
+     * - User is authenticated via Firebase
+     * - Lookup contact by firebaseUid
+     * - Store contact info for Step 2
+     */
+    const hydrateContact = async () => {
       try {
-        // Get contactId from localStorage (set during login)
-        const contactId = localStorage.getItem('clientPortalContactId');
+        // Step 1: Get contact by Firebase UID (CLIENT PORTAL ROUTE)
+        const contactResponse = await api.get(`/api/contacts/by-firebase-uid`);
         
-        if (!contactId) {
-          router.replace('/login');
-          return;
-        }
-
-        // Get proposalId from URL or find proposals for this contact
-        const proposalId = searchParams.get('proposalId') || localStorage.getItem('clientPortalProposalId');
-        
-        if (proposalId) {
-          localStorage.setItem('clientPortalProposalId', proposalId);
+        if (contactResponse.data?.success && contactResponse.data.contact) {
+          const contactData = contactResponse.data.contact;
+          setContact(contactData);
           
-          // Fetch proposal to verify access
-          try {
-            const response = await api.get(`/api/proposals/${proposalId}/portal`);
-            if (response.data?.success) {
-              setProposal(response.data.portalData);
-              setHasAccess(true);
-            }
-          } catch (err) {
-            console.error('Error fetching proposal:', err);
-            // Still allow access - we'll verify on dashboard
-            setHasAccess(true);
-          }
+          // Store contact session using hook (foundation for everything else)
+          setContactSession({
+            contactId: contactData.id,
+            contactEmail: contactData.email || '',
+            firebaseId: firebaseUser.uid,
+            contactCompanyId: contactData.contactCompanyId || null,
+            companyName: contactData.contactCompany?.companyName || null,
+            companyHQId: contactData.crmId || null,
+          });
+          
+          setLoading(false);
         } else {
-          // No proposal ID - find proposals for this contact
-          try {
-            const response = await api.get(`/api/contacts/${contactId}/proposals`);
-            if (response.data?.success && response.data.proposals?.length > 0) {
-              const firstProposal = response.data.proposals[0];
-              localStorage.setItem('clientPortalProposalId', firstProposal.id);
-              setHasAccess(true);
-            } else {
-              setHasAccess(true); // Allow access, show empty state
-            }
-          } catch (err) {
-            console.error('Error fetching proposals:', err);
-            setHasAccess(true); // Allow access
-          }
+          setError('Contact not found. Please ensure your account is activated.');
+          setLoading(false);
         }
-        
-        setLoading(false);
       } catch (error) {
-        console.error('Error checking access:', error);
+        console.error('❌ Step 1: Contact hydration error:', error);
+        setError(error.response?.data?.error || 'Failed to load contact information.');
         setLoading(false);
       }
     };
 
-    checkAccess();
-  }, [router, searchParams]);
+    hydrateContact();
+  }, [router]);
 
   const handleContinue = () => {
     router.push('/dashboard');
@@ -101,7 +88,7 @@ function WelcomeContent() {
     );
   }
 
-  if (!hasAccess) {
+  if (error) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-black via-gray-900 to-gray-800 flex items-center justify-center p-4 relative">
         <div className="absolute top-6 right-6 flex items-center gap-2">
@@ -116,10 +103,8 @@ function WelcomeContent() {
           <span className="text-sm font-semibold text-gray-300">Ignite</span>
         </div>
         <div className="bg-gray-900 border border-gray-700 rounded-2xl shadow-2xl p-8 max-w-md text-center">
-          <h1 className="text-2xl font-bold text-white mb-4">Access Required</h1>
-          <p className="text-gray-400 mb-6">
-            You need a valid proposal link to access the client portal.
-          </p>
+          <h1 className="text-2xl font-bold text-white mb-4">Error</h1>
+          <p className="text-gray-400 mb-6">{error}</p>
           <button
             onClick={() => router.push('/login')}
             className="rounded-lg bg-gray-700 hover:bg-gray-600 border border-gray-500 px-6 py-2 text-white font-semibold transition"
@@ -204,15 +189,15 @@ function WelcomeContent() {
           </svg>
         </div>
         <h1 className="text-3xl font-bold text-white mb-2">
-          Welcome to Your Client Portal
+          Welcome{contact?.firstName ? `, ${contact.firstName}` : ''}!
         </h1>
-        {proposal && (
+        {contact?.contactCompany?.companyName && (
           <p className="text-gray-400 mb-2">
-            Engagement: <span className="font-semibold text-gray-300">{proposal.client?.company}</span>
+            <span className="font-semibold text-gray-300">{contact.contactCompany.companyName}</span>
           </p>
         )}
         <p className="text-gray-400 mb-8">
-          View your proposals, track deliverables, and manage your engagement with Ignite Strategies.
+          Step 1 Complete: Contact loaded. Ready to view your proposals and deliverables.
         </p>
         <button
           onClick={handleContinue}
