@@ -37,14 +37,22 @@ function LoginForm() {
       const { signInWithEmailAndPassword } = await import('firebase/auth');
       const { auth } = await import('@/lib/firebase');
       
+      // Step 1: Authenticate with Firebase (email/password)
       const result = await signInWithEmailAndPassword(
         auth,
         credentials.username, // Email
         credentials.password
       );
 
-      // Get contact by email
-      const contactResponse = await api.get(`/api/contacts/by-email?email=${encodeURIComponent(credentials.username)}`);
+      // Step 2: Get Firebase UID (universal identifier)
+      const firebaseUid = result.user.uid;
+      
+      // Step 3: Get Firebase token (for API calls)
+      const idToken = await result.user.getIdToken();
+      
+      // Step 4: Find Contact by Firebase UID (Pattern B: Hydrate)
+      // This follows the architecture: Firebase UID → Contact lookup
+      const contactResponse = await api.get(`/api/contacts/by-firebase-uid`);
       
       if (contactResponse.data?.success && contactResponse.data.contact) {
         const contact = contactResponse.data.contact;
@@ -52,17 +60,16 @@ function LoginForm() {
         // Store contact session
         localStorage.setItem('clientPortalContactId', contact.id);
         localStorage.setItem('clientPortalCompanyHQId', contact.crmId);
-        localStorage.setItem('clientPortalContactEmail', contact.email || '');
+        localStorage.setItem('clientPortalContactEmail', contact.email || credentials.username);
+        localStorage.setItem('firebaseId', firebaseUid);
         
-        // Store Firebase token
-        const idToken = await result.user.getIdToken();
-        localStorage.setItem('firebaseToken', idToken);
-        localStorage.setItem('firebaseId', result.user.uid);
+        // Firebase token is automatically managed by axios interceptor
+        // No need to store manually - axios will get fresh token on each request
         
         // Redirect to welcome/dashboard
         router.push('/welcome');
       } else {
-        setError('Contact not found for this email');
+        setError('Contact not found. Please ensure your account is activated.');
       }
     } catch (error) {
       console.error('Contact login failed:', error);
