@@ -83,39 +83,7 @@ export async function GET(request) {
       );
     }
 
-    // Get proposals for this contact's company (if they have a company)
-    let proposals = [];
-    if (contact.contactCompanyId) {
-      try {
-        const proposalsData = await prisma.proposal.findMany({
-          where: {
-            companyId: contact.contactCompanyId,
-            status: {
-              in: ['draft', 'active', 'approved'],
-            },
-          },
-          select: {
-            id: true,
-            clientName: true,
-            clientCompany: true,
-            status: true,
-            totalPrice: true,
-            dateIssued: true,
-          },
-          orderBy: {
-            createdAt: 'desc',
-          },
-          take: 10, // Limit to most recent 10
-        });
-        proposals = proposalsData;
-        console.log(`✅ Found ${proposals.length} proposals for company ${contact.contactCompanyId}`);
-      } catch (proposalsError) {
-        console.warn('⚠️ Could not fetch proposals:', proposalsError.message);
-        // Don't fail hydration if proposals can't be fetched
-      }
-    }
-
-    // Build hydration response
+    // Build hydration response (CONTACT ONLY - company/proposals hydrate on dashboard)
     const hydrationData = {
       contact: {
         id: contact.id,
@@ -135,14 +103,12 @@ export async function GET(request) {
             companyName: contact.contactCompany.companyName,
           }
         : null,
-      proposals: proposals,
       firebaseUid: firebaseUid,
     };
 
     console.log('✅ Contact hydration complete:', {
       contactId: contact.id,
       companyId: contact.contactCompanyId,
-      proposalsCount: proposals.length,
     });
 
     return NextResponse.json({

@@ -70,7 +70,6 @@ function WelcomeContent() {
             console.log('✅ Contact hydrated:', {
               contactId: contactData.id,
               companyName: hydrationData.company?.companyName,
-              proposalsCount: hydrationData.proposals?.length || 0,
             });
             
             setLoading(false);
@@ -226,13 +225,13 @@ function WelcomeContent() {
           </p>
         )}
         <p className="text-gray-400 mb-8">
-          Step 1 Complete: Contact loaded. Ready to view your proposals and deliverables.
+          Your account is ready. View your proposals, track deliverables, and see your progress.
         </p>
         <button
           onClick={handleContinue}
           className="w-full rounded-lg bg-gray-700 hover:bg-gray-600 border border-gray-500 px-6 py-3 text-white font-semibold transition shadow-lg"
         >
-          Continue to Dashboard →
+          Take me to see progress →
         </button>
       </div>
     </div>
