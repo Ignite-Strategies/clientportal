@@ -75,16 +75,24 @@ function LoginForm() {
     } catch (error) {
       console.error('Contact login failed:', error);
       
-      // Handle specific Firebase auth errors
-      let errorMessage = 'Sign-in failed. Please check your credentials.';
+      // Handle specific Firebase auth errors with user-friendly messages
+      let errorMessage = 'The email or password you provided didn\'t work. Please try again.';
       
       if (error.code === 'auth/invalid-credential' || error.code === 'auth/wrong-password') {
-        errorMessage = 'Invalid email or password. If you just activated your account, make sure you\'re using the password you set.';
+        errorMessage = 'The email or password you provided didn\'t work. Please check your spelling and try again.';
       } else if (error.code === 'auth/user-not-found') {
-        errorMessage = 'No account found for this email. Please use your activation link to set up your account first.';
+        errorMessage = 'No account found for this email. Please check your email address or use your activation link to set up your account.';
       } else if (error.code === 'auth/user-disabled') {
-        errorMessage = 'This account has been disabled. Please contact support.';
-      } else if (error.message) {
+        errorMessage = 'This account has been disabled. Please contact your Ignite Strategies representative for assistance.';
+      } else if (error.code === 'auth/too-many-requests') {
+        errorMessage = 'Too many failed login attempts. Please wait a few minutes and try again.';
+      } else if (error.code === 'auth/network-request-failed') {
+        errorMessage = 'Network error. Please check your internet connection and try again.';
+      } else if (error.response?.data?.error) {
+        // API error from backend
+        errorMessage = error.response.data.error;
+      } else if (error.message && !error.message.includes('Firebase')) {
+        // Non-Firebase errors
         errorMessage = error.message;
       }
       
