@@ -3,7 +3,7 @@
 import Image from 'next/image';
 import { useState, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { Handshake } from 'lucide-react';
+import { Handshake, Eye, EyeOff } from 'lucide-react';
 import api from '@/lib/api';
 
 function LoginForm() {
@@ -16,6 +16,7 @@ function LoginForm() {
   });
   const [error, setError] = useState('');
   const [contactId, setContactId] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
 
   // Get contactId from URL if present
   useEffect(() => {
@@ -168,17 +169,31 @@ function LoginForm() {
                 <label className="block text-sm font-semibold text-gray-300 mb-1">
                   Password
                 </label>
-                <input
-                  type="password"
-                  value={credentials.password}
-                  onChange={(e) =>
-                    setCredentials({ ...credentials, password: e.target.value })
-                  }
-                  required
-                  className="w-full rounded-lg bg-gray-800 border border-gray-600 text-white px-4 py-2 text-sm focus:border-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-500 placeholder:text-gray-500"
-                  placeholder="••••••••"
-                  disabled={isSigningIn}
-                />
+                <div className="relative">
+                  <input
+                    type={showPassword ? 'text' : 'password'}
+                    value={credentials.password}
+                    onChange={(e) =>
+                      setCredentials({ ...credentials, password: e.target.value })
+                    }
+                    required
+                    className="w-full rounded-lg bg-gray-800 border border-gray-600 text-white px-4 py-2 pr-10 text-sm focus:border-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-500 placeholder:text-gray-500"
+                    placeholder="••••••••"
+                    disabled={isSigningIn}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-300 transition"
+                    tabIndex={-1}
+                  >
+                    {showPassword ? (
+                      <EyeOff className="h-5 w-5" />
+                    ) : (
+                      <Eye className="h-5 w-5" />
+                    )}
+                  </button>
+                </div>
               </div>
               <button
                 type="submit"
