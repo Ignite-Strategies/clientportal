@@ -3,6 +3,7 @@
 import { useEffect, useState, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { auth, onAuthStateChanged } from '@/lib/firebase';
+import { Handshake } from 'lucide-react';
 import Image from 'next/image';
 import api from '@/lib/api';
 import { useClientPortalSession } from '@/lib/hooks/useClientPortalSession';
@@ -17,25 +18,23 @@ function WelcomeContent() {
 
   useEffect(() => {
     // Use onAuthStateChanged to wait for Firebase auth to initialize
-    let hasChecked = false;
+    let hydrated = false;
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
-      // Give Firebase a moment to propagate auth state after login
-      if (!firebaseUser && !hasChecked) {
-        // Wait a bit before redirecting - might be auth state propagation delay
-        setTimeout(() => {
-          if (!auth.currentUser && !hasChecked) {
-            router.replace('/login');
-          }
-        }, 500);
-        return;
-      }
-      
-      hasChecked = true;
+      // Prevent multiple hydration calls
+      if (hydrated) return;
       
       if (!firebaseUser) {
-        router.replace('/login');
+        // If no user after a brief delay, redirect to login
+        setTimeout(() => {
+          if (!auth.currentUser) {
+            router.replace('/login');
+          }
+        }, 1000);
         return;
       }
+
+      // Mark as hydrated to prevent duplicate calls
+      hydrated = true;
 
       /**
        * Step 1: Contact Lookup/Retrieval (First Hydration)
@@ -45,7 +44,8 @@ function WelcomeContent() {
        */
       const hydrateContact = async () => {
         try {
-          // Step 1: Call client hydration endpoint (hydrates contact + company + proposals)
+          setLoading(true);
+          // Step 1: Call client hydration endpoint (hydrates contact only)
           const hydrationResponse = await api.get(`/api/client/hydrate`);
           
           if (hydrationResponse.data?.success && hydrationResponse.data.data) {
@@ -159,62 +159,7 @@ function WelcomeContent() {
       </div>
       <div className="bg-gray-900 border border-gray-700 rounded-2xl shadow-2xl p-8 max-w-md text-center">
         <div className="mb-6 flex justify-center">
-          <svg
-            className="h-16 w-16 text-gray-300"
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
-            xmlns="http://www.w3.org/2000/svg"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M11 12h2a2 2 0 1 0 0-4h-3c-.6 0-1.1.2-1.4.6L3 14"
-            />
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M7 18h1a2 2 0 0 0 0-4H5c-.6 0-1.1.2-1.4.6L3 14"
-            />
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M13 12h2a2 2 0 1 1 0-4h-3c-.6 0-1.1.2-1.4.6L21 10"
-            />
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M17 18h1a2 2 0 0 1 0-4h-3c-.6 0-1.1.2-1.4.6L21 10"
-            />
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M3 14l4-4"
-            />
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M21 10l-4 4"
-            />
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M11 12l-2 2"
-            />
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M13 12l2 2"
-            />
-          </svg>
+          <Handshake className="h-16 w-16 text-gray-300" strokeWidth={2} />
         </div>
         <h1 className="text-3xl font-bold text-white mb-2">
           Welcome{contact?.firstName ? `, ${contact.firstName}` : ''}!
