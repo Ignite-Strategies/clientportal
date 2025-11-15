@@ -8,13 +8,13 @@ import api from '@/lib/api';
 import { useClientPortalSession } from '@/lib/hooks/useClientPortalSession';
 
 /**
- * Welcome Router
+ * Welcome Router - Strategic Routing
  * 
- * This page acts as a smart router - it checks user state and routes accordingly.
- * No UI needed - just fast routing based on:
- * - Work has begun (approved proposals + deliverables) → Dashboard
- * - Has draft proposals → Proposal view
- * - No proposals → Onboarding
+ * Owners send contacts to portal in two scenarios:
+ * 1. First: When proposal is ready to view → Route to proposal view
+ * 2. Second: When work starts (deliverables with workContent) → Route to dashboard
+ * 
+ * This page checks state and routes accordingly - no UI, just smart routing.
  */
 function WelcomeContent() {
   const router = useRouter();
@@ -68,8 +68,9 @@ function WelcomeContent() {
             console.log('✅ Contact hydrated and state checked:', {
               contactId: contact.id,
               companyName: contact.companyName,
-              workHasBegun: state.workHasBegun,
+              workHasStarted: state.workHasStarted,
               route: state.routing.route,
+              routeReason: state.routing.routeReason,
             });
             
             // Step 2: Route based on state
@@ -82,7 +83,9 @@ function WelcomeContent() {
           }
         } catch (error) {
           console.error('❌ Welcome router error:', error);
-          // On error, try to at least hydrate contact and go to onboarding
+          // On error, try to at least hydrate contact and go to dashboard
+          // Real world: Clients only get access when they have proposals/deliverables
+          // So dashboard will show empty state if needed
           try {
             const hydrationResponse = await api.get(`/api/client/hydrate`);
             if (hydrationResponse.data?.success && hydrationResponse.data.data) {
@@ -95,7 +98,7 @@ function WelcomeContent() {
                 companyName: hydrationResponse.data.data.company?.companyName || null,
                 companyHQId: null,
               });
-              router.replace('/onboarding');
+              router.replace('/dashboard'); // Always go to dashboard, even if empty
             } else {
               router.replace('/login');
             }

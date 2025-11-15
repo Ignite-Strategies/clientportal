@@ -53,12 +53,46 @@ export async function GET(request) {
     const hasDraftProposals = proposals.some((p) => p.status === 'draft');
     const hasActiveProposals = proposals.some((p) => p.status === 'active');
 
-    // Work has begun if: approved proposals OR deliverables exist
-    const workHasBegun = hasApprovedProposals || hasDeliverables;
+    // Strategic Routing Logic:
+    // Scenario 1: Owner sends contact when proposal is ready → Show proposal view
+    // Scenario 2: Owner sends contact when work starts → Show dashboard with deliverables
+    
+    // Check if work has actually started:
+    // - Deliverables with workContent (actual work artifacts) - if field exists
+    // - OR deliverables with status "in-progress" or "completed"
+    const deliverablesWithWork = deliverables.filter(
+      (d) => {
+        // Check if workContent exists (field may not exist in schema yet)
+        const hasWorkContent = d.workContent !== null && d.workContent !== undefined;
+        const hasActiveStatus = d.status === 'in-progress' || d.status === 'completed';
+        return hasWorkContent || hasActiveStatus;
+      }
+    );
+    const workHasStarted = deliverablesWithWork.length > 0;
 
-    // Find first draft proposal (for routing)
+    // Find proposals for routing
     const firstDraftProposal = proposals.find((p) => p.status === 'draft');
     const firstApprovedProposal = proposals.find((p) => p.status === 'approved');
+    const firstActiveProposal = proposals.find((p) => p.status === 'active');
+    
+    // Priority: approved > active > draft
+    const primaryProposal = firstApprovedProposal || firstActiveProposal || firstDraftProposal;
+
+    // Strategic routing decision
+    let route, routeReason;
+    if (workHasStarted) {
+      // Scenario 2: Work has started → Dashboard
+      route = '/dashboard';
+      routeReason = 'work_started';
+    } else if (primaryProposal) {
+      // Scenario 1: Proposal ready, no work yet → Proposal view
+      route = `/proposals/${primaryProposal.id}`;
+      routeReason = 'proposal_ready';
+    } else {
+      // Fallback: Dashboard (will show empty state)
+      route = '/dashboard';
+      routeReason = 'no_proposals';
+    }
 
     return NextResponse.json({
       success: true,
@@ -83,20 +117,17 @@ export async function GET(request) {
           status: d.status,
           category: d.category,
           dueDate: d.dueDate,
+          hasWorkContent: !!d.workContent,
         })),
         hasApprovedProposals,
         hasDeliverables,
         hasDraftProposals,
         hasActiveProposals,
-        workHasBegun,
+        workHasStarted,
         routing: {
-          // Where should we route?
-          route: workHasBegun
-            ? '/dashboard'
-            : firstDraftProposal
-              ? `/proposals/${firstDraftProposal.id}`
-              : '/onboarding',
-          proposalId: firstApprovedProposal?.id || firstDraftProposal?.id || null,
+          route,
+          routeReason,
+          proposalId: primaryProposal?.id || null,
         },
       },
     });

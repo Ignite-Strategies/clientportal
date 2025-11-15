@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, Suspense, useCallback } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { auth } from '@/lib/firebase';
 import Image from 'next/image';
@@ -8,9 +8,33 @@ import api from '@/lib/api';
 import { useClientPortalSession } from '@/lib/hooks/useClientPortalSession';
 import InvoicePaymentModal from '@/app/components/InvoicePaymentModal';
 
-export default function ClientPortalDashboard() {
+/**
+ * Payment Success Handler
+ * Handles payment success redirects from Stripe
+ * Must be wrapped in Suspense because it uses useSearchParams()
+ */
+function PaymentSuccessHandler({ onPaymentSuccess }) {
   const router = useRouter();
   const searchParams = useSearchParams();
+
+  useEffect(() => {
+    const sessionId = searchParams?.get('session_id');
+    const invoiceId = searchParams?.get('invoice_id');
+    
+    if (sessionId && invoiceId) {
+      // Payment completed - refresh invoices
+      onPaymentSuccess();
+      
+      // Clean up URL
+      router.replace('/dashboard');
+    }
+  }, [searchParams, router, onPaymentSuccess]);
+
+  return null;
+}
+
+export default function ClientPortalDashboard() {
+  const router = useRouter();
   const { proposalId, setProposalId, contactSession, hasValidSession, refreshSession } = useClientPortalSession();
   const [loading, setLoading] = useState(true);
   const [portalData, setPortalData] = useState(null);
@@ -122,25 +146,17 @@ export default function ClientPortalDashboard() {
     return () => unsubscribe();
   }, [router, contactSession, hasValidSession, proposalId, setProposalId, refreshSession]);
 
-  // Handle payment success redirect
-  useEffect(() => {
-    const sessionId = searchParams?.get('session_id');
-    const invoiceId = searchParams?.get('invoice_id');
-    
-    if (sessionId && invoiceId) {
-      // Payment completed - refresh invoices
-      api.get('/api/invoices')
-        .then((response) => {
-          if (response.data?.success) {
-            setInvoices(response.data.invoices || []);
-          }
-        })
-        .catch((err) => console.error('Error refreshing invoices:', err));
-      
-      // Clean up URL
-      router.replace('/dashboard');
-    }
-  }, [searchParams, router]);
+  // Handle payment success callback - memoized to prevent unnecessary re-renders
+  const handlePaymentSuccess = useCallback(() => {
+    // Refresh invoices after payment
+    api.get('/api/invoices')
+      .then((response) => {
+        if (response.data?.success) {
+          setInvoices(response.data.invoices || []);
+        }
+      })
+      .catch((err) => console.error('Error refreshing invoices:', err));
+  }, []);
 
   const handlePromoteToOwner = async () => {
     if (!window.confirm('Are you ready to get your own IgniteBD stack? This will create your own workspace where you can manage your business development.')) {
@@ -170,17 +186,11 @@ export default function ClientPortalDashboard() {
     setShowPaymentModal(true);
   };
 
-  const handlePaymentSuccess = () => {
+  const handlePaymentModalSuccess = () => {
     setShowPaymentModal(false);
     setSelectedInvoice(null);
     // Refresh invoices
-    api.get('/api/invoices')
-      .then((response) => {
-        if (response.data?.success) {
-          setInvoices(response.data.invoices || []);
-        }
-      })
-      .catch((err) => console.error('Error refreshing invoices:', err));
+    handlePaymentSuccess();
   };
 
   const formatDate = (dateString) => {
@@ -205,6 +215,11 @@ export default function ClientPortalDashboard() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-black via-gray-900 to-gray-800">
+      {/* Payment Success Handler - Wrapped in Suspense */}
+      <Suspense fallback={null}>
+        <PaymentSuccessHandler onPaymentSuccess={handlePaymentSuccess} />
+      </Suspense>
+
       {/* Header */}
       <header className="bg-gray-900 border-b border-gray-700">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
@@ -427,7 +442,7 @@ export default function ClientPortalDashboard() {
             setShowPaymentModal(false);
             setSelectedInvoice(null);
           }}
-          onSuccess={handlePaymentSuccess}
+          onSuccess={handlePaymentModalSuccess}
         />
       )}
     </div>
