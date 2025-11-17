@@ -98,24 +98,48 @@ export default function ClientPortalDashboard() {
             console.warn('Could not fetch contact role:', err);
           }
 
-          // Step 2b: Load proposals using contactCompanyId
+          // Step 2b: Load engagement data (work packages, deliverables, artifacts)
+          try {
+            const engagementResponse = await api.get('/api/client/engagement');
+            if (engagementResponse.data?.success) {
+              const engagement = engagementResponse.data;
+              
+              // Build portal data from engagement
+              const portalDataFromEngagement = {
+                client: {
+                  name: contactSession?.contactEmail?.split('@')[0] || 'Client',
+                  company: contactSession?.companyName || '',
+                },
+                status: {
+                  totalDeliverables: engagement.deliverables?.length || 0,
+                  completedDeliverables: engagement.deliverables?.filter(d => d.status === 'completed').length || 0,
+                  overall: engagement.stage || 'onboarding',
+                },
+                deliverables: engagement.deliverables || [],
+                workPackage: engagement.workPackage,
+                stage: engagement.stage,
+                needsReview: engagement.needsReview,
+              };
+              
+              setPortalData(portalDataFromEngagement);
+            }
+          } catch (err) {
+            console.error('Error loading engagement:', err);
+            // Continue - show empty state
+          }
+
+          // Step 2c: Load proposals using contactCompanyId (for invoices)
           if (contactCompanyId) {
             try {
               // Find proposals for this contact's company
               const proposalsResponse = await api.get(`/api/contacts/${contactId}/proposals`);
               
               if (proposalsResponse.data?.success && proposalsResponse.data.proposals?.length > 0) {
-                // Get first proposal or use stored one (foundation for everything else)
+                // Get first proposal or use stored one (foundation for invoices)
                 let currentProposalId = proposalId;
                 if (!currentProposalId) {
                   currentProposalId = proposalsResponse.data.proposals[0].id;
                   setProposalId(currentProposalId); // Store using hook
-                }
-
-                // Load full portal data for this proposal
-                const portalResponse = await api.get(`/api/proposals/${currentProposalId}/portal`);
-                if (portalResponse.data?.success) {
-                  setPortalData(portalResponse.data.portalData);
                 }
 
                 // Load invoices
@@ -271,9 +295,19 @@ export default function ClientPortalDashboard() {
           <>
             <div className="mb-8">
               <h2 className="text-2xl font-bold text-white mb-2">
-                Welcome, {portalData.client.name}
+                {portalData.workPackage?.company?.companyName 
+                  ? `Work Package: ${portalData.workPackage.company.companyName}`
+                  : `Welcome, ${portalData.client.name}`
+                }
               </h2>
-              <p className="text-gray-400">{portalData.client.company}</p>
+              {portalData.workPackage?.company?.companyName && (
+                <p className="text-gray-400">
+                  {portalData.workPackage.title || 'Active Work Package'}
+                </p>
+              )}
+              {!portalData.workPackage?.company?.companyName && (
+                <p className="text-gray-400">{portalData.client.company}</p>
+              )}
             </div>
 
             {/* Stats Cards */}
@@ -298,6 +332,22 @@ export default function ClientPortalDashboard() {
               </div>
             </div>
 
+            {/* Review CTA - Show if any artifact needs review */}
+            {portalData?.needsReview && (
+              <div className="mb-8 bg-gradient-to-r from-yellow-600 to-amber-500 border border-yellow-500 rounded-lg p-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h3 className="text-xl font-bold text-white mb-2">
+                      Action Required: Review Needed
+                    </h3>
+                    <p className="text-white/90">
+                      You have deliverables waiting for your review. Click "Review" on any item below.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
+
             {/* Elevation CTA - Only show if contact is not already an owner */}
             {contactRole !== 'owner' && (
               <div className="mb-8 bg-gradient-to-r from-red-600 to-amber-500 border border-red-500 rounded-lg p-6">
@@ -318,6 +368,18 @@ export default function ClientPortalDashboard() {
                     {promoting ? 'Setting Up...' : "I'm Ready For My Stack"}
                   </button>
                 </div>
+              </div>
+            )}
+
+            {/* View All Work Button - Only show if work package has artifacts */}
+            {portalData?.workPackage && portalData.workPackage.items.some(item => item.artifacts.length > 0) && (
+              <div className="mb-8">
+                <button
+                  onClick={() => router.push(`/workpackages/${portalData.workPackage.id}`)}
+                  className="px-6 py-3 bg-gray-800 border border-gray-700 text-white font-semibold rounded-lg hover:bg-gray-700 transition"
+                >
+                  View All Work
+                </button>
               </div>
             )}
 
@@ -391,10 +453,10 @@ export default function ClientPortalDashboard() {
               </div>
             </div>
 
-            {/* Deliverables List */}
+            {/* Deliverables List - Stage-Based with Conditional View/Review */}
             <div className="bg-gray-900 border border-gray-700 rounded-lg">
               <div className="p-6 border-b border-gray-700">
-                <h3 className="text-lg font-semibold text-white">Foundational Work</h3>
+                <h3 className="text-lg font-semibold text-white">Deliverables</h3>
                 <p className="text-sm text-gray-400">What we're delivering for you</p>
               </div>
               <div className="p-6">
@@ -402,30 +464,67 @@ export default function ClientPortalDashboard() {
                   <p className="text-gray-400 text-center py-8">No deliverables yet</p>
                 ) : (
                   <div className="space-y-4">
-                    {portalData.deliverables.map((deliverable) => (
-                      <div
-                        key={deliverable.id}
-                        className="flex items-center justify-between p-4 border border-gray-700 rounded-lg bg-gray-800"
-                      >
-                        <div>
-                          <h4 className="font-semibold text-white">{deliverable.title}</h4>
-                          {deliverable.category && (
-                            <p className="text-sm text-gray-400">{deliverable.category}</p>
-                          )}
-                        </div>
-                        <span
-                          className={`px-3 py-1 rounded-full text-xs font-semibold ${
-                            deliverable.status === 'completed'
-                              ? 'bg-gray-700 text-gray-300'
-                              : deliverable.status === 'in-progress'
-                                ? 'bg-gray-700 text-gray-300'
-                                : 'bg-gray-700 text-gray-400'
-                          }`}
+                    {portalData.deliverables.map((deliverable) => {
+                      const hasArtifact = deliverable.artifactId !== null && deliverable.artifactId !== undefined;
+                      const isInReview = deliverable.artifactStatus === 'IN_REVIEW';
+                      const isCompleted = deliverable.status === 'completed' || deliverable.artifactStatus === 'COMPLETED';
+                      const isInProgress = deliverable.status === 'in-progress' || deliverable.artifactStatus === 'DRAFT';
+
+                      // Determine status label
+                      let statusLabel = 'Not Started';
+                      let statusColor = 'bg-gray-700 text-gray-400';
+                      
+                      if (isCompleted) {
+                        statusLabel = 'Completed';
+                        statusColor = 'bg-green-900 text-green-300';
+                      } else if (isInReview) {
+                        statusLabel = 'Needs Your Review';
+                        statusColor = 'bg-yellow-900 text-yellow-300';
+                      } else if (isInProgress) {
+                        statusLabel = 'In Progress';
+                        statusColor = 'bg-blue-900 text-blue-300';
+                      }
+
+                      return (
+                        <div
+                          key={deliverable.id}
+                          className="flex items-center justify-between p-4 border border-gray-700 rounded-lg bg-gray-800"
                         >
-                          {deliverable.status}
-                        </span>
-                      </div>
-                    ))}
+                          <div className="flex-1">
+                            <div className="flex items-center gap-3 mb-1">
+                              <h4 className="font-semibold text-white">{deliverable.title}</h4>
+                              <span className={`px-3 py-1 rounded-full text-xs font-semibold ${statusColor}`}>
+                                {statusLabel}
+                              </span>
+                            </div>
+                            {deliverable.category && (
+                              <p className="text-sm text-gray-400">{deliverable.category}</p>
+                            )}
+                          </div>
+                          <div className="ml-4">
+                            {hasArtifact ? (
+                              isInReview ? (
+                                <button
+                                  onClick={() => router.push(`/work/${deliverable.artifactId}`)}
+                                  className="px-4 py-2 bg-yellow-600 text-white font-semibold rounded-lg hover:bg-yellow-700 transition"
+                                >
+                                  Review
+                                </button>
+                              ) : (
+                                <button
+                                  onClick={() => router.push(`/work/${deliverable.artifactId}`)}
+                                  className="px-4 py-2 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 transition"
+                                >
+                                  View
+                                </button>
+                              )
+                            ) : (
+                              <span className="text-sm text-gray-500">Not Started</span>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
                 )}
               </div>
