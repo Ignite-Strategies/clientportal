@@ -43,6 +43,20 @@ export async function GET(request) {
     const workPackage = await prisma.workPackage.findFirst({
       where: { contactId: contact.id },
       include: {
+        company: {
+          select: {
+            id: true,
+            companyName: true,
+          },
+        },
+        contact: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            email: true,
+          },
+        },
         items: {
           orderBy: { createdAt: 'asc' },
         },

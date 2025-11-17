@@ -4,18 +4,20 @@ import { useEffect, useState } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import { auth } from '@/lib/firebase';
 import Image from 'next/image';
+import api from '@/lib/api';
 
 /**
  * Work Artifact View (MVP1)
  * 
- * Simple placeholder page for viewing artifacts
- * Links from dashboard use first artifact ID
+ * Fetches WorkArtifact and displays minimal content
+ * Title + JSON dump for now
  */
 export default function WorkArtifactPage() {
   const router = useRouter();
   const params = useParams();
   const artifactId = params?.artifactId;
   const [loading, setLoading] = useState(true);
+  const [artifact, setArtifact] = useState(null);
 
   useEffect(() => {
     const { onAuthStateChanged } = require('firebase/auth');
@@ -26,8 +28,17 @@ export default function WorkArtifactPage() {
         return;
       }
 
-      // MVP1: Simple placeholder
-      setLoading(false);
+      // Fetch WorkArtifact
+      try {
+        const artifactResponse = await api.get(`/api/work/${artifactId}`);
+        if (artifactResponse.data?.success) {
+          setArtifact(artifactResponse.data.artifact);
+        }
+      } catch (error) {
+        console.error('❌ Error loading artifact:', error);
+      } finally {
+        setLoading(false);
+      }
     });
 
     return () => unsubscribe();
@@ -73,13 +84,39 @@ export default function WorkArtifactPage() {
       {/* Content */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="bg-gray-900 border border-gray-700 rounded-lg p-8">
-          <h1 className="text-2xl font-bold text-white mb-4">Artifact View</h1>
-          <p className="text-gray-400">
-            Artifact ID: {artifactId}
-          </p>
-          <p className="text-gray-400 mt-4">
-            Full artifact viewing coming soon...
-          </p>
+          {artifact ? (
+            <>
+              <h1 className="text-2xl font-bold text-white mb-4">
+                {artifact.title || `Artifact ${artifactId}`}
+              </h1>
+              <div className="mb-4">
+                <span className="px-3 py-1 rounded-full text-xs font-semibold bg-gray-700 text-gray-300">
+                  {artifact.type}
+                </span>
+                <span className="ml-2 px-3 py-1 rounded-full text-xs font-semibold bg-gray-700 text-gray-300">
+                  {artifact.status}
+                </span>
+              </div>
+              {artifact.contentJson && (
+                <div className="mt-6">
+                  <h2 className="text-lg font-semibold text-white mb-2">Content</h2>
+                  <pre className="bg-gray-800 border border-gray-700 rounded-lg p-4 text-sm text-gray-300 overflow-auto">
+                    {JSON.stringify(artifact.contentJson, null, 2)}
+                  </pre>
+                </div>
+              )}
+            </>
+          ) : (
+            <>
+              <h1 className="text-2xl font-bold text-white mb-4">Artifact View</h1>
+              <p className="text-gray-400">
+                Artifact ID: {artifactId}
+              </p>
+              <p className="text-gray-400 mt-4">
+                Artifact not found or could not be loaded.
+              </p>
+            </>
+          )}
         </div>
       </main>
     </div>
