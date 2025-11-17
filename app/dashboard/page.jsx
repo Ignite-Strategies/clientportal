@@ -1,48 +1,33 @@
 'use client';
 
-import { useEffect, useState, Suspense, useCallback } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { auth } from '@/lib/firebase';
 import Image from 'next/image';
 import api from '@/lib/api';
-import { useClientPortalSession } from '@/lib/hooks/useClientPortalSession';
-import InvoicePaymentModal from '@/app/components/InvoicePaymentModal';
 
 /**
- * Payment Success Handler
- * Handles payment success redirects from Stripe
- * Must be wrapped in Suspense because it uses useSearchParams()
+ * Dashboard = Hydration Brain (MVP1)
+ * 
+ * Reads:
+ * - contactId from localStorage
+ * - contactCompanyId from localStorage
+ * 
+ * Calls:
+ * - GET /api/client/engagement?companyId={contactCompanyId}
+ * 
+ * UI Behavior:
+ * - If no workPackage: "Hi Joel 👋 Your engagement is being prepared."
+ * - If workPackage exists: Show title and deliverables list
+ * - Link to /work/[artifactId] using first artifact
  */
-function PaymentSuccessHandler({ onPaymentSuccess }) {
-  const router = useRouter();
-  const searchParams = useSearchParams();
-
-  useEffect(() => {
-    const sessionId = searchParams?.get('session_id');
-    const invoiceId = searchParams?.get('invoice_id');
-    
-    if (sessionId && invoiceId) {
-      // Payment completed - refresh invoices
-      onPaymentSuccess();
-      
-      // Clean up URL
-      router.replace('/dashboard');
-    }
-  }, [searchParams, router, onPaymentSuccess]);
-
-  return null;
-}
-
 export default function ClientPortalDashboard() {
   const router = useRouter();
-  const { proposalId, setProposalId, contactSession, hasValidSession, refreshSession } = useClientPortalSession();
   const [loading, setLoading] = useState(true);
-  const [portalData, setPortalData] = useState(null);
-  const [contactRole, setContactRole] = useState(null);
-  const [promoting, setPromoting] = useState(false);
-  const [invoices, setInvoices] = useState([]);
-  const [selectedInvoice, setSelectedInvoice] = useState(null);
-  const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [workPackage, setWorkPackage] = useState(null);
+  const [contactEmail, setContactEmail] = useState('');
+  const [contactName, setContactName] = useState('');
+  const [hasPendingInvoices, setHasPendingInvoices] = useState(false);
 
   useEffect(() => {
     // Use onAuthStateChanged to wait for Firebase auth to initialize
@@ -55,175 +40,85 @@ export default function ClientPortalDashboard() {
       }
 
       /**
-       * Step 2: Company/Proposals Hydration (Second Hydration)
-       * - Contact is already loaded (from Step 1: Welcome)
-       * - Load company info and proposals using contactCompanyId
-       * - This is the full dashboard hydration
+       * MVP1: Simple hydration
+       * 1. Read contactId and contactCompanyId from localStorage
+       * 2. Call GET /api/client/engagement?companyId={contactCompanyId}
+       * 3. Display work package or empty state
        */
-      const hydrateCompanyAndProposals = async () => {
+      const hydrateEngagement = async () => {
         try {
-          // Give session a moment to be available (might have just been set in welcome)
-          await new Promise(resolve => setTimeout(resolve, 200));
-          
-          // Refresh session from localStorage to get latest data
-          refreshSession();
-          
-          // Wait a bit more for state to update
-          await new Promise(resolve => setTimeout(resolve, 100));
-          
-          // Check session directly from localStorage as fallback
-          const storedContactId = typeof window !== 'undefined' 
+          // Read from localStorage
+          const contactId = typeof window !== 'undefined' 
             ? localStorage.getItem('clientPortalContactId')
             : null;
-          
-          if (!storedContactId && !contactSession?.contactId) {
-            // No contact from Step 1 - redirect to welcome to hydrate
+          const contactCompanyId = typeof window !== 'undefined' 
+            ? localStorage.getItem('clientPortalContactCompanyId')
+            : null;
+          const storedEmail = typeof window !== 'undefined' 
+            ? localStorage.getItem('clientPortalContactEmail')
+            : null;
+
+          if (!contactId || !contactCompanyId) {
             console.log('⚠️ No contact session found, redirecting to welcome');
             router.replace('/welcome');
             return;
           }
 
-          // Use stored contactId if hook hasn't updated yet
-          const contactId = contactSession?.contactId || storedContactId;
-          const contactCompanyId = contactSession?.contactCompanyId || 
-            (typeof window !== 'undefined' ? localStorage.getItem('clientPortalContactCompanyId') : null);
-
-          // Step 2a: Get contact role (for elevation flow)
-          try {
-            const contactResponse = await api.get(`/api/contacts/by-firebase-uid`);
-            if (contactResponse.data?.success && contactResponse.data.contact) {
-              setContactRole(contactResponse.data.contact.role || 'contact');
-            }
-          } catch (err) {
-            console.warn('Could not fetch contact role:', err);
+          // Set contact email for greeting
+          if (storedEmail) {
+            setContactEmail(storedEmail);
+            // Extract first name from email (simple MVP1)
+            const firstName = storedEmail.split('@')[0].split('.')[0];
+            setContactName(firstName.charAt(0).toUpperCase() + firstName.slice(1));
           }
 
-          // Step 2b: Load engagement data (work packages, deliverables, artifacts)
+           // Call engagement endpoint (fetches by contactId internally)
+           const engagementResponse = await api.get('/api/client/engagement');
+           
+           if (engagementResponse.data?.success) {
+             setWorkPackage(engagementResponse.data.workPackage);
+             // Store company info for display
+             if (engagementResponse.data.company) {
+               setContactName(engagementResponse.data.company.companyName || contactName);
+             }
+           }
+
+          // Check for pending invoices (billing summary)
           try {
-            const engagementResponse = await api.get('/api/client/engagement');
-            if (engagementResponse.data?.success) {
-              const engagement = engagementResponse.data;
-              
-              // Build portal data from engagement
-              const portalDataFromEngagement = {
-                client: {
-                  name: contactSession?.contactEmail?.split('@')[0] || 'Client',
-                  company: contactSession?.companyName || '',
-                },
-                status: {
-                  totalDeliverables: engagement.deliverables?.length || 0,
-                  completedDeliverables: engagement.deliverables?.filter(d => d.status === 'completed').length || 0,
-                  overall: engagement.stage || 'onboarding',
-                },
-                deliverables: engagement.deliverables || [],
-                workPackage: engagement.workPackage,
-                stage: engagement.stage,
-                needsReview: engagement.needsReview,
-              };
-              
-              setPortalData(portalDataFromEngagement);
+            const invoicesResponse = await api.get('/api/invoices');
+            if (invoicesResponse.data?.success) {
+              const invoices = invoicesResponse.data.invoices || [];
+              const pending = invoices.some((inv) => inv.status === 'pending');
+              setHasPendingInvoices(pending);
             }
-          } catch (err) {
-            console.error('Error loading engagement:', err);
-            // Continue - show empty state
-          }
-
-          // Step 2c: Load proposals using contactCompanyId (for invoices)
-          if (contactCompanyId) {
-            try {
-              // Find proposals for this contact's company
-              const proposalsResponse = await api.get(`/api/contacts/${contactId}/proposals`);
-              
-              if (proposalsResponse.data?.success && proposalsResponse.data.proposals?.length > 0) {
-                // Get first proposal or use stored one (foundation for invoices)
-                let currentProposalId = proposalId;
-                if (!currentProposalId) {
-                  currentProposalId = proposalsResponse.data.proposals[0].id;
-                  setProposalId(currentProposalId); // Store using hook
-                }
-
-                // Load invoices
-                try {
-                  const invoicesResponse = await api.get('/api/invoices');
-                  if (invoicesResponse.data?.success) {
-                    setInvoices(invoicesResponse.data.invoices || []);
-                  }
-                } catch (err) {
-                  console.error('Error loading invoices:', err);
-                }
-              }
-            } catch (err) {
-              console.error('Error loading proposals:', err);
-              // Continue - show empty state
-            }
+          } catch (invoiceError) {
+            console.warn('Could not fetch invoices:', invoiceError);
+            // Continue - billing summary is optional
           }
         } catch (error) {
-          console.error('❌ Step 2: Company/Proposals hydration error:', error);
+          console.error('❌ Dashboard hydration error:', error);
+          // Continue - show empty state
         } finally {
           setLoading(false);
         }
       };
 
-      hydrateCompanyAndProposals();
+      hydrateEngagement();
     });
 
     return () => unsubscribe();
-  }, [router, contactSession, hasValidSession, proposalId, setProposalId, refreshSession]);
+  }, [router]);
 
-  // Handle payment success callback - memoized to prevent unnecessary re-renders
-  const handlePaymentSuccess = useCallback(() => {
-    // Refresh invoices after payment
-    api.get('/api/invoices')
-      .then((response) => {
-        if (response.data?.success) {
-          setInvoices(response.data.invoices || []);
-        }
-      })
-      .catch((err) => console.error('Error refreshing invoices:', err));
-  }, []);
-
-  const handlePromoteToOwner = async () => {
-    if (!window.confirm('Are you ready to get your own IgniteBD stack? This will create your own workspace where you can manage your business development.')) {
-      return;
-    }
-
-    setPromoting(true);
-    try {
-      const response = await api.post('/api/promote-to-owner');
-      if (response.data?.success) {
-        alert('Congratulations! You now have your own IgniteBD workspace. Redirecting...');
-        // Redirect to their new stack (would need to implement this route)
-        window.location.href = '/stack';
-      } else {
-        alert(response.data?.error || 'Failed to promote to owner');
+  // Get first artifact ID for linking
+  const getFirstArtifactId = () => {
+    if (!workPackage || !workPackage.items) return null;
+    
+    for (const item of workPackage.items) {
+      if (item.artifacts && item.artifacts.length > 0) {
+        return item.artifacts[0].id;
       }
-    } catch (error) {
-      console.error('Error promoting to owner:', error);
-      alert(error.response?.data?.error || 'Failed to promote to owner. Please try again.');
-    } finally {
-      setPromoting(false);
     }
-  };
-
-  const handlePayInvoice = (invoice) => {
-    setSelectedInvoice(invoice);
-    setShowPaymentModal(true);
-  };
-
-  const handlePaymentModalSuccess = () => {
-    setShowPaymentModal(false);
-    setSelectedInvoice(null);
-    // Refresh invoices
-    handlePaymentSuccess();
-  };
-
-  const formatDate = (dateString) => {
-    if (!dateString) return 'N/A';
-    return new Date(dateString).toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-    });
+    return null;
   };
 
   if (loading) {
@@ -239,51 +134,22 @@ export default function ClientPortalDashboard() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-black via-gray-900 to-gray-800">
-      {/* Payment Success Handler - Wrapped in Suspense */}
-      <Suspense fallback={null}>
-        <PaymentSuccessHandler onPaymentSuccess={handlePaymentSuccess} />
-      </Suspense>
-
       {/* Header */}
       <header className="bg-gray-900 border-b border-gray-700">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
           <div className="flex items-center justify-between">
-            {/* Top Left: CompanyName */}
             <div className="flex items-center gap-2">
-              {contactSession?.companyName ? (
-                <h1 className="text-xl font-bold text-white">{contactSession.companyName}</h1>
-              ) : (
-                <h1 className="text-xl font-bold text-white">Client Portal</h1>
-              )}
+              <h1 className="text-xl font-bold text-white">Client Portal</h1>
             </div>
-            <div className="flex items-center gap-4">
-            <nav className="flex gap-4">
-              <button className="text-sm font-medium text-gray-300 hover:text-white">
-                Foundational Work
-              </button>
-              <button className="text-sm font-medium text-gray-300 hover:text-white">
-                Proposals
-              </button>
-              <button className="text-sm font-medium text-gray-300 hover:text-white">
-                Timeline
-              </button>
-              <button 
-                onClick={() => router.push('/settings')}
-                className="text-sm font-medium text-gray-300 hover:text-white"
-              >
-                Settings
-              </button>
-            </nav>
-              <div className="flex items-center gap-2">
-                <Image
-                  src="/logo.png"
-                  alt="Ignite"
-                  width={32}
-                  height={32}
-                  className="h-8 w-8 object-contain"
-                />
-                <span className="text-sm font-semibold text-gray-300">Ignite</span>
-              </div>
+            <div className="flex items-center gap-2">
+              <Image
+                src="/logo.png"
+                alt="Ignite"
+                width={32}
+                height={32}
+                className="h-8 w-8 object-contain"
+              />
+              <span className="text-sm font-semibold text-gray-300">Ignite</span>
             </div>
           </div>
         </div>
@@ -291,260 +157,97 @@ export default function ClientPortalDashboard() {
 
       {/* Dashboard Content */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {portalData && (
-          <>
-            <div className="mb-8">
-              <h2 className="text-2xl font-bold text-white mb-2">
-                {portalData.workPackage?.company?.companyName 
-                  ? `Work Package: ${portalData.workPackage.company.companyName}`
-                  : `Welcome, ${portalData.client.name}`
-                }
-              </h2>
-              {portalData.workPackage?.company?.companyName && (
-                <p className="text-gray-400">
-                  {portalData.workPackage.title || 'Active Work Package'}
-                </p>
-              )}
-              {!portalData.workPackage?.company?.companyName && (
-                <p className="text-gray-400">{portalData.client.company}</p>
-              )}
-            </div>
+         {!workPackage ? (
+           // No work package - empty state
+           <div className="text-center py-16">
+             <h2 className="text-3xl font-bold text-white mb-4">
+               {contactName || 'Welcome'} 👋
+             </h2>
+             <p className="text-xl text-gray-400">
+               Your engagement is being prepared.
+             </p>
+           </div>
+         ) : (
+           // Work package exists
+           <>
+             <div className="mb-8">
+               <h2 className="text-3xl font-bold text-white mb-2">
+                 {workPackage.company?.companyName || contactName || 'Work Package'}
+               </h2>
+               <p className="text-xl text-gray-400 mb-4">
+                 {workPackage.title || 'Active Work Package'}
+               </p>
+               {workPackage.description && (
+                 <p className="text-gray-500">{workPackage.description}</p>
+               )}
+             </div>
 
-            {/* Stats Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-              <div className="bg-gray-900 border border-gray-700 rounded-lg p-6">
-                <p className="text-sm text-gray-400 mb-1">Total Deliverables</p>
-                <p className="text-3xl font-bold text-white">
-                  {portalData.status.totalDeliverables}
-                </p>
-              </div>
-              <div className="bg-gray-900 border border-gray-700 rounded-lg p-6">
-                <p className="text-sm text-gray-400 mb-1">Completed</p>
-                <p className="text-3xl font-bold text-gray-300">
-                  {portalData.status.completedDeliverables}
-                </p>
-              </div>
-              <div className="bg-gray-900 border border-gray-700 rounded-lg p-6">
-                <p className="text-sm text-gray-400 mb-1">Status</p>
-                <p className="text-3xl font-bold text-gray-300 capitalize">
-                  {portalData.status.overall}
-                </p>
-              </div>
-            </div>
-
-            {/* Review CTA - Show if any artifact needs review */}
-            {portalData?.needsReview && (
-              <div className="mb-8 bg-gradient-to-r from-yellow-600 to-amber-500 border border-yellow-500 rounded-lg p-6">
+            {/* Billing Summary - Simple block if pending invoices */}
+            {hasPendingInvoices && (
+              <div className="mb-8 bg-gray-900 border border-gray-700 rounded-lg p-6">
                 <div className="flex items-center justify-between">
                   <div>
-                    <h3 className="text-xl font-bold text-white mb-2">
-                      Action Required: Review Needed
-                    </h3>
-                    <p className="text-white/90">
-                      You have deliverables waiting for your review. Click "Review" on any item below.
-                    </p>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* Elevation CTA - Only show if contact is not already an owner */}
-            {contactRole !== 'owner' && (
-              <div className="mb-8 bg-gradient-to-r from-red-600 to-amber-500 border border-red-500 rounded-lg p-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <h3 className="text-xl font-bold text-white mb-2">
-                      Ready for Your Own Stack?
-                    </h3>
-                    <p className="text-white/90">
-                      Get your own IgniteBD workspace to manage your business development.
-                    </p>
+                    <h3 className="text-lg font-semibold text-white mb-1">Billing</h3>
+                    <p className="text-gray-400">You have one payment due.</p>
                   </div>
                   <button
-                    onClick={handlePromoteToOwner}
-                    disabled={promoting}
-                    className="px-6 py-3 bg-white text-red-600 font-semibold rounded-lg hover:bg-gray-100 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                    onClick={() => router.push('/settings/billing')}
+                    className="px-6 py-2 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 transition"
                   >
-                    {promoting ? 'Setting Up...' : "I'm Ready For My Stack"}
+                    Pay Now
                   </button>
                 </div>
               </div>
             )}
 
-            {/* View All Work Button - Only show if work package has artifacts */}
-            {portalData?.workPackage && portalData.workPackage.items.some(item => item.artifacts.length > 0) && (
-              <div className="mb-8">
-                <button
-                  onClick={() => router.push(`/workpackages/${portalData.workPackage.id}`)}
-                  className="px-6 py-3 bg-gray-800 border border-gray-700 text-white font-semibold rounded-lg hover:bg-gray-700 transition"
-                >
-                  View All Work
-                </button>
-              </div>
-            )}
-
-            {/* Invoices Section */}
-            <div className="bg-gray-900 border border-gray-700 rounded-lg mb-8">
-              <div className="p-6 border-b border-gray-700">
-                <h3 className="text-lg font-semibold text-white">Pay Invoice</h3>
-                <p className="text-sm text-gray-400">View and pay your invoices</p>
-              </div>
-              <div className="p-6">
-                {invoices.length === 0 ? (
-                  <p className="text-gray-400 text-center py-8">No invoices yet</p>
-                ) : (
-                  <div className="space-y-4">
-                    {invoices.map((invoice) => (
-                      <div
-                        key={invoice.id}
-                        className="flex items-center justify-between p-4 border border-gray-700 rounded-lg bg-gray-800"
-                      >
-                        <div className="flex-1">
-                          <div className="flex items-center gap-4 mb-2">
-                            <h4 className="font-semibold text-white">
-                              Invoice {invoice.invoiceNumber}
-                            </h4>
-                            <span
-                              className={`px-3 py-1 rounded-full text-xs font-semibold ${
-                                invoice.status === 'paid'
-                                  ? 'bg-green-900 text-green-300'
-                                  : invoice.status === 'failed'
-                                    ? 'bg-red-900 text-red-300'
-                                    : 'bg-yellow-900 text-yellow-300'
-                              }`}
-                            >
-                              {invoice.status.toUpperCase()}
-                            </span>
-                          </div>
-                          <div className="flex items-center gap-6 text-sm text-gray-400">
-                            <span>
-                              Amount: <span className="text-white font-semibold">
-                                ${invoice.amount.toFixed(2)} {invoice.currency}
-                              </span>
-                            </span>
-                            {invoice.dueDate && (
-                              <span>Due: {formatDate(invoice.dueDate)}</span>
-                            )}
-                            {invoice.trigger && (
-                              <span>Trigger: {invoice.trigger}</span>
-                            )}
-                          </div>
-                          {invoice.description && (
-                            <p className="text-sm text-gray-400 mt-2">{invoice.description}</p>
-                          )}
-                        </div>
-                        {invoice.status === 'pending' && (
-                          <button
-                            onClick={() => handlePayInvoice(invoice)}
-                            className="px-6 py-2 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 transition ml-4"
-                          >
-                            Pay Now
-                          </button>
-                        )}
-                        {invoice.status === 'paid' && invoice.paidAt && (
-                          <div className="text-sm text-gray-400 ml-4">
-                            Paid {formatDate(invoice.paidAt)}
-                          </div>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* Deliverables List - Stage-Based with Conditional View/Review */}
+            {/* Deliverables List */}
             <div className="bg-gray-900 border border-gray-700 rounded-lg">
               <div className="p-6 border-b border-gray-700">
                 <h3 className="text-lg font-semibold text-white">Deliverables</h3>
-                <p className="text-sm text-gray-400">What we're delivering for you</p>
               </div>
               <div className="p-6">
-                {portalData.deliverables.length === 0 ? (
-                  <p className="text-gray-400 text-center py-8">No deliverables yet</p>
-                ) : (
+                {workPackage.items && workPackage.items.length > 0 ? (
                   <div className="space-y-4">
-                    {portalData.deliverables.map((deliverable) => {
-                      const hasArtifact = deliverable.artifactId !== null && deliverable.artifactId !== undefined;
-                      const isInReview = deliverable.artifactStatus === 'IN_REVIEW';
-                      const isCompleted = deliverable.status === 'completed' || deliverable.artifactStatus === 'COMPLETED';
-                      const isInProgress = deliverable.status === 'in-progress' || deliverable.artifactStatus === 'DRAFT';
-
-                      // Determine status label
-                      let statusLabel = 'Not Started';
-                      let statusColor = 'bg-gray-700 text-gray-400';
-                      
-                      if (isCompleted) {
-                        statusLabel = 'Completed';
-                        statusColor = 'bg-green-900 text-green-300';
-                      } else if (isInReview) {
-                        statusLabel = 'Needs Your Review';
-                        statusColor = 'bg-yellow-900 text-yellow-300';
-                      } else if (isInProgress) {
-                        statusLabel = 'In Progress';
-                        statusColor = 'bg-blue-900 text-blue-300';
-                      }
+                    {workPackage.items.map((item) => {
+                      const firstArtifact = item.artifacts && item.artifacts.length > 0 
+                        ? item.artifacts[0] 
+                        : null;
+                      const hasArtifacts = item.artifacts && item.artifacts.length > 0;
 
                       return (
                         <div
-                          key={deliverable.id}
+                          key={item.id}
                           className="flex items-center justify-between p-4 border border-gray-700 rounded-lg bg-gray-800"
                         >
                           <div className="flex-1">
-                            <div className="flex items-center gap-3 mb-1">
-                              <h4 className="font-semibold text-white">{deliverable.title}</h4>
-                              <span className={`px-3 py-1 rounded-full text-xs font-semibold ${statusColor}`}>
-                                {statusLabel}
-                              </span>
-                            </div>
-                            {deliverable.category && (
-                              <p className="text-sm text-gray-400">{deliverable.category}</p>
-                            )}
+                            <h4 className="font-semibold text-white">{item.deliverableName}</h4>
                           </div>
-                          <div className="ml-4">
-                            {hasArtifact ? (
-                              isInReview ? (
-                                <button
-                                  onClick={() => router.push(`/work/${deliverable.artifactId}`)}
-                                  className="px-4 py-2 bg-yellow-600 text-white font-semibold rounded-lg hover:bg-yellow-700 transition"
-                                >
-                                  Review
-                                </button>
-                              ) : (
-                                <button
-                                  onClick={() => router.push(`/work/${deliverable.artifactId}`)}
-                                  className="px-4 py-2 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 transition"
-                                >
-                                  View
-                                </button>
-                              )
+                          <div>
+                            {hasArtifacts ? (
+                              <button
+                                onClick={() => router.push(`/work/${firstArtifact.id}`)}
+                                className="px-4 py-2 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 transition"
+                              >
+                                View
+                              </button>
                             ) : (
-                              <span className="text-sm text-gray-500">Not Started</span>
+                              <span className="px-4 py-2 text-gray-400 font-semibold">
+                                Not Started
+                              </span>
                             )}
                           </div>
                         </div>
                       );
                     })}
                   </div>
+                ) : (
+                  <p className="text-gray-400 text-center py-8">No deliverables yet</p>
                 )}
               </div>
             </div>
           </>
         )}
       </main>
-
-      {/* Payment Modal */}
-      {showPaymentModal && selectedInvoice && (
-        <InvoicePaymentModal
-          invoice={selectedInvoice}
-          onClose={() => {
-            setShowPaymentModal(false);
-            setSelectedInvoice(null);
-          }}
-          onSuccess={handlePaymentModalSuccess}
-        />
-      )}
     </div>
   );
 }
-

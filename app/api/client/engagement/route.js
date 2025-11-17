@@ -4,8 +4,14 @@ import { prisma } from '@/lib/prisma';
 
 /**
  * GET /api/client/engagement
- * Get client engagement data including work packages, deliverables, and artifacts
- * Returns stage-based summary with conditional artifact IDs
+ * 
+ * MVP1: Returns the single work package for this contact
+ * Fetches by contactId (from authenticated Firebase user)
+ * But includes company information for display
+ * 
+ * Returns:
+ * - { success: true, workPackage: {...}, company: {...} } if work package exists
+ * - { success: true, workPackage: null, company: {...} } if no work package
  */
 export async function GET(request) {
   try {
@@ -33,178 +39,98 @@ export async function GET(request) {
       );
     }
 
-    // Get work packages for this contact's COMPANY (not just the contact)
-    // Work packages are scoped to the company (BusinessPoint Law), not the individual contact
-    const workPackages = await prisma.workPackage.findMany({
-      where: {
-        OR: [
-          { contactId: contact.id },
-          { companyId: contact.contactCompanyId },
-        ],
-      },
+    // Find work package by contactId (get the first/most recent one)
+    const workPackage = await prisma.workPackage.findFirst({
+      where: { contactId: contact.id },
       include: {
-        company: {
-          select: {
-            id: true,
-            companyName: true,
-          },
-        },
-        contact: {
-          select: {
-            id: true,
-            firstName: true,
-            lastName: true,
-            email: true,
-          },
-        },
-        phases: {
-          include: {
-            items: {
-              include: {
-                artifacts: {
-                  select: {
-                    id: true,
-                    type: true,
-                    title: true,
-                    status: true,
-                    reviewRequestedAt: true,
-                    reviewCompletedAt: true,
-                  },
-                  orderBy: { createdAt: 'desc' },
-                },
-              },
-              orderBy: { createdAt: 'asc' },
-            },
-          },
-          orderBy: { position: 'asc' },
-        },
         items: {
-          include: {
-            artifacts: {
-              select: {
-                id: true,
-                type: true,
-                title: true,
-                status: true,
-                reviewRequestedAt: true,
-                reviewCompletedAt: true,
-              },
-              orderBy: { createdAt: 'desc' },
-            },
-          },
           orderBy: { createdAt: 'asc' },
         },
       },
       orderBy: { createdAt: 'desc' },
     });
 
-    // Get deliverables (ConsultantDeliverable)
-    const deliverables = await prisma.consultantDeliverable.findMany({
-      where: { contactId: contact.id },
-      orderBy: { createdAt: 'desc' },
-    });
+    // Get company info for display (from contact's company)
+    const company = contact.contactCompany ? {
+      id: contact.contactCompany.id,
+      companyName: contact.contactCompany.companyName,
+    } : null;
 
-    // Determine current stage
-    // Stage logic: If any artifact is IN_REVIEW, stage is "review"
-    // If any work package exists, stage is "active"
-    // Otherwise "onboarding"
-    let stage = 'onboarding';
-    let needsReview = false;
-
-    for (const wp of workPackages) {
-      for (const item of wp.items) {
-        if (item.artifacts.length > 0) {
-          stage = 'active';
-          const hasInReview = item.artifacts.some(a => a.status === 'IN_REVIEW');
-          if (hasInReview) {
-            stage = 'review';
-            needsReview = true;
-            break;
-          }
-        }
-      }
-      if (needsReview) break;
+    // If no work package, return null with company info
+    if (!workPackage) {
+      return NextResponse.json({
+        success: true,
+        workPackage: null,
+        company,
+        contact: {
+          id: contact.id,
+          firstName: contact.firstName,
+          lastName: contact.lastName,
+          email: contact.email,
+        },
+      });
     }
 
-    // Build deliverables array with conditional artifactId
-    const deliverablesWithArtifacts = deliverables.map((deliverable) => {
-      // Find matching work package item by title/description
-      let artifactId = null;
-      let artifactStatus = null;
+    // Hydrate items with artifacts (MVP1 - use WorkArtifact model)
+    const hydratedItems = await Promise.all(
+      workPackage.items.map(async (item) => {
+        // Load WorkArtifact records (primary source for MVP1)
+        const workArtifacts = await prisma.workArtifact.findMany({
+          where: { workPackageItemId: item.id },
+          orderBy: { createdAt: 'asc' },
+        });
 
-      for (const wp of workPackages) {
-        for (const item of wp.items) {
-          if (item.deliverableLabel === deliverable.title || 
-              item.deliverableDescription === deliverable.description) {
-            // Get first artifact if exists
-            if (item.artifacts.length > 0) {
-              artifactId = item.artifacts[0].id;
-              artifactStatus = item.artifacts[0].status;
-            }
-            break;
-          }
-        }
-        if (artifactId) break;
-      }
-
-      return {
-        id: deliverable.id,
-        title: deliverable.title,
-        description: deliverable.description,
-        status: deliverable.status,
-        category: deliverable.category,
-        artifactId, // Only included if artifact exists
-        artifactStatus, // Status of the artifact if exists
-      };
-    });
-
-    // Build work package response - emphasize company, not individual contact
-    const workPackageResponse = workPackages.length > 0 ? {
-      id: workPackages[0].id,
-      title: workPackages[0].title,
-      description: workPackages[0].description,
-      // Company is the primary identifier (BusinessPoint Law), not the contact
-      company: workPackages[0].company ? {
-        id: workPackages[0].company.id,
-        companyName: workPackages[0].company.companyName,
-      } : null,
-      // Contact is secondary (who the work package is associated with)
-      contact: workPackages[0].contact ? {
-        id: workPackages[0].contact.id,
-        name: `${workPackages[0].contact.firstName || ''} ${workPackages[0].contact.lastName || ''}`.trim(),
-        email: workPackages[0].contact.email,
-      } : null,
-      items: workPackages[0].items.map((item) => ({
-        id: item.id,
-        deliverableLabel: item.deliverableLabel,
-        deliverableDescription: item.deliverableDescription,
-        status: item.status,
-        artifacts: item.artifacts.map((artifact) => ({
+        // Transform WorkArtifact to MVP1 format
+        const artifacts = workArtifacts.map((artifact) => ({
           id: artifact.id,
           type: artifact.type,
-          title: artifact.title,
-          status: artifact.status,
-        })),
-      })),
-    } : null;
+          status: artifact.status, // DRAFT | IN_REVIEW | APPROVED | COMPLETED
+        }));
+
+        return {
+          id: item.id,
+          deliverableName: item.deliverableLabel || item.itemLabel || 'Deliverable',
+          artifacts,
+        };
+      })
+    );
+
+    // Transform to MVP1 format - include company for display
+    const transformed = {
+      id: workPackage.id,
+      title: workPackage.title,
+      description: workPackage.description,
+      items: hydratedItems,
+      // Include company from workPackage (if exists) or from contact
+      company: workPackage.company || company,
+      contact: workPackage.contact ? {
+        id: workPackage.contact.id,
+        firstName: workPackage.contact.firstName,
+        lastName: workPackage.contact.lastName,
+        email: workPackage.contact.email,
+      } : {
+        id: contact.id,
+        firstName: contact.firstName,
+        lastName: contact.lastName,
+        email: contact.email,
+      },
+    };
 
     return NextResponse.json({
       success: true,
-      stage,
-      needsReview,
-      deliverables: deliverablesWithArtifacts,
-      workPackage: workPackageResponse,
+      workPackage: transformed,
+      company: transformed.company, // Also include at top level for easy access
+      contact: transformed.contact, // Also include at top level for easy access
     });
   } catch (error) {
-    console.error('❌ Get engagement error:', error);
+    console.error('❌ GetClientEngagement error:', error);
     return NextResponse.json(
       {
         success: false,
-        error: 'Failed to get engagement data',
-        details: process.env.NODE_ENV === 'development' ? error.message : undefined,
+        error: 'Failed to get engagement',
+        details: error.message,
       },
       { status: 500 },
     );
   }
 }
-

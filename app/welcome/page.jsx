@@ -5,20 +5,19 @@ import { useRouter } from 'next/navigation';
 import { auth, onAuthStateChanged } from '@/lib/firebase';
 import Image from 'next/image';
 import api from '@/lib/api';
-import { useClientPortalSession } from '@/lib/hooks/useClientPortalSession';
 
 /**
- * Welcome Router - Strategic Routing
+ * Welcome = Loader Only (MVP1)
  * 
- * Owners send contacts to portal in two scenarios:
- * 1. First: When proposal is ready to view → Route to proposal view
- * 2. Second: When work starts (deliverables with workContent) → Route to dashboard
- * 
- * This page checks state and routes accordingly - no UI, just smart routing.
+ * No routing logic. No UI decisions. No fetching proposals or work.
+ * Just:
+ * 1. Get Firebase UID
+ * 2. Fetch contact by UID
+ * 3. Store in localStorage: contactId, contactCompanyId, contactEmail, firebaseUid
+ * 4. Redirect to /dashboard
  */
 function WelcomeContent() {
   const router = useRouter();
-  const { setContactSession } = useClientPortalSession();
 
   useEffect(() => {
     // Use onAuthStateChanged to wait for Firebase auth to initialize
@@ -41,79 +40,47 @@ function WelcomeContent() {
       routed = true;
 
       /**
-       * Welcome Router Logic:
-       * 1. Hydrate contact
-       * 2. Check state (proposals + deliverables)
-       * 3. Route based on state
+       * MVP1: Simple loader - just hydrate contact and redirect
        */
-      const routeUser = async () => {
+      const hydrateAndRedirect = async () => {
         try {
-          // Step 1: Get client state (includes contact hydration + state check)
-          const stateResponse = await api.get(`/api/client/state`);
+          // Fetch contact by Firebase UID
+          const hydrationResponse = await api.get(`/api/client/hydrate`);
           
-          if (stateResponse.data?.success && stateResponse.data.state) {
-            const state = stateResponse.data.state;
-            const contact = state.contact;
+          if (hydrationResponse.data?.success && hydrationResponse.data.data) {
+            const contact = hydrationResponse.data.data.contact;
+            const firebaseUid = firebaseUser.uid;
             
-            // Store contact session (foundation for everything else)
-            setContactSession({
+            // Store in localStorage (MVP1 - simple storage)
+            if (typeof window !== 'undefined') {
+              localStorage.setItem('clientPortalContactId', contact.id);
+              localStorage.setItem('clientPortalContactCompanyId', contact.contactCompanyId || '');
+              localStorage.setItem('clientPortalContactEmail', contact.email || '');
+              localStorage.setItem('firebaseId', firebaseUid);
+            }
+            
+            console.log('✅ Contact hydrated (MVP1):', {
               contactId: contact.id,
-              contactEmail: contact.email || '',
-              firebaseId: firebaseUser.uid,
-              contactCompanyId: contact.contactCompanyId || null,
-              companyName: contact.companyName || null,
-              companyHQId: null, // Not needed for client portal
+              contactCompanyId: contact.contactCompanyId,
             });
             
-            console.log('✅ Contact hydrated and state checked:', {
-              contactId: contact.id,
-              companyName: contact.companyName,
-              workHasStarted: state.workHasStarted,
-              route: state.routing.route,
-              routeReason: state.routing.routeReason,
-            });
-            
-            // Step 2: Route based on state
-            // Use replace to avoid adding to history
-            router.replace(state.routing.route);
+            // Redirect to dashboard
+            router.replace('/dashboard');
           } else {
-            // Error - redirect to login
-            console.error('❌ Failed to get client state');
+            console.error('❌ Failed to hydrate contact');
             router.replace('/login');
           }
         } catch (error) {
-          console.error('❌ Welcome router error:', error);
-          // On error, try to at least hydrate contact and go to dashboard
-          // Real world: Clients only get access when they have proposals/deliverables
-          // So dashboard will show empty state if needed
-          try {
-            const hydrationResponse = await api.get(`/api/client/hydrate`);
-            if (hydrationResponse.data?.success && hydrationResponse.data.data) {
-              const contactData = hydrationResponse.data.data.contact;
-              setContactSession({
-                contactId: contactData.id,
-                contactEmail: contactData.email || '',
-                firebaseId: firebaseUser.uid,
-                contactCompanyId: contactData.contactCompanyId || null,
-                companyName: hydrationResponse.data.data.company?.companyName || null,
-                companyHQId: null,
-              });
-              router.replace('/dashboard'); // Always go to dashboard, even if empty
-            } else {
-              router.replace('/login');
-            }
-          } catch (hydrationError) {
-            console.error('❌ Failed to hydrate contact:', hydrationError);
-            router.replace('/login');
-          }
+          console.error('❌ Welcome loader error:', error);
+          router.replace('/login');
         }
       };
 
-      routeUser();
+      hydrateAndRedirect();
     });
 
     return () => unsubscribe();
-  }, [router, setContactSession]);
+  }, [router]);
 
   // Show minimal loading state while routing
   return (
