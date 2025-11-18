@@ -129,20 +129,8 @@ export default function ClientPortalDashboard() {
                 console.warn('⚠️ [Dashboard] API returned success:false', engagementResponse.data);
               }
 
-          // Check for pending invoices (billing summary)
-          try {
-            console.log('💰 [Dashboard] Fetching invoices...');
-            const invoicesResponse = await api.get('/api/client/billing');
-            if (invoicesResponse.data?.success) {
-              const invoices = invoicesResponse.data.invoices || [];
-              const pending = invoices.filter((inv) => inv.status === 'pending');
-              console.log('✅ [Dashboard] Invoices loaded:', { total: invoices.length, pending: pending.length });
-              setPendingInvoices(pending);
-            }
-          } catch (invoiceError) {
-            console.warn('⚠️ [Dashboard] Could not fetch invoices:', invoiceError);
-            // Continue - billing summary is optional
-          }
+          // Billing removed - refactoring in progress
+          // TODO: Re-enable billing fetch after refactor
         } catch (error) {
           console.error('❌ [Dashboard] Hydration error:', error);
           console.error('❌ [Dashboard] Error details:', {
@@ -237,8 +225,8 @@ export default function ClientPortalDashboard() {
                )}
              </div>
 
-            {/* Invoice Notification - User-facing alert for pending invoices */}
-            {pendingInvoices.length > 0 && (
+            {/* Invoice Notification - Temporarily disabled during refactor */}
+            {false && pendingInvoices.length > 0 && (
               <div className="mb-8 bg-gradient-to-r from-yellow-600/20 to-amber-500/20 border-2 border-yellow-500/50 rounded-lg p-6">
                 <div className="flex items-start justify-between">
                   <div className="flex-1">
@@ -288,56 +276,57 @@ export default function ClientPortalDashboard() {
               </div>
             )}
 
-            {/* Deliverables List */}
+            {/* Deliverables List - Flatten from phases */}
             <div className="bg-gray-900 border border-gray-700 rounded-lg">
               <div className="p-6 border-b border-gray-700">
                 <h3 className="text-lg font-semibold text-white">Deliverables</h3>
               </div>
               <div className="p-6">
-                {workPackage.items && workPackage.items.length > 0 ? (
-                  <div className="space-y-4">
-                    {workPackage.items.map((item) => {
-                      const firstArtifact = item.artifacts && item.artifacts.length > 0 
-                        ? item.artifacts[0] 
-                        : null;
-                      const hasArtifacts = item.artifacts && item.artifacts.length > 0;
-
-                      return (
-                        <div
-                          key={item.id}
-                          className="flex items-center justify-between p-4 border border-gray-700 rounded-lg bg-gray-800"
-                        >
-                          <div className="flex-1">
-                            <h4 className="font-semibold text-white">{item.deliverableName}</h4>
-                          </div>
-                          <div>
-                            {hasArtifacts ? (
-                              <button
-                                onClick={() => {
-                                  const wpId = localStorage.getItem('clientPortalWorkPackageId');
-                                  if (wpId) {
-                                    router.push(`/client/work/${wpId}`);
-                                  } else {
-                                    router.push(`/client/work/artifacts/${firstArtifact.id}`);
-                                  }
-                                }}
-                                className="px-4 py-2 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 transition"
-                              >
-                                View Project
-                              </button>
-                            ) : (
-                              <span className="px-4 py-2 text-gray-400 font-semibold">
-                                Not Started
-                              </span>
-                            )}
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                ) : (
-                  <p className="text-gray-400 text-center py-8">No deliverables yet</p>
-                )}
+                {(() => {
+                  // Flatten items from all phases
+                  const allItems = workPackage.phases?.flatMap(phase => phase.items || []) || [];
+                  
+                  if (allItems.length > 0) {
+                    return (
+                      <div className="space-y-4">
+                        {allItems.map((item) => {
+                          const wpId = localStorage.getItem('clientPortalWorkPackageId');
+                          const deliverableName = item.deliverableLabel || item.deliverableName || item.itemLabel || 'Deliverable';
+                          
+                          return (
+                            <div
+                              key={item.id}
+                              className="flex items-center justify-between p-4 border border-gray-700 rounded-lg bg-gray-800"
+                            >
+                              <div className="flex-1">
+                                <h4 className="font-semibold text-white">{deliverableName}</h4>
+                                {item.deliverableDescription && (
+                                  <p className="text-sm text-gray-400 mt-1">{item.deliverableDescription}</p>
+                                )}
+                              </div>
+                              <div>
+                                {wpId ? (
+                                  <button
+                                    onClick={() => router.push(`/client/work/${wpId}`)}
+                                    className="px-4 py-2 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 transition"
+                                  >
+                                    View Project
+                                  </button>
+                                ) : (
+                                  <span className="px-4 py-2 text-gray-400 font-semibold">
+                                    Not Started
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    );
+                  } else {
+                    return <p className="text-gray-400 text-center py-8">No deliverables yet</p>;
+                  }
+                })()}
               </div>
             </div>
           </>
