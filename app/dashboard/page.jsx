@@ -78,6 +78,8 @@ export default function ClientPortalDashboard() {
            
            if (engagementResponse.data?.success) {
              setWorkPackage(engagementResponse.data.workPackage);
+             // Store full engagement data in localStorage for artifact page
+             localStorage.setItem('clientPortalEngagement', JSON.stringify(engagementResponse.data));
              // Store workPackageId if available
              if (engagementResponse.data.workPackageId) {
                localStorage.setItem('clientPortalWorkPackageId', engagementResponse.data.workPackageId);

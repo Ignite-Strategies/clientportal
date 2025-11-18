@@ -28,7 +28,33 @@ export default function WorkArtifactPage() {
         return;
       }
 
-      // Fetch WorkArtifact
+      // Try to get artifact from localStorage first (from engagement data)
+      if (typeof window !== 'undefined' && artifactId) {
+        try {
+          // Check if we have engagement data cached
+          const cachedEngagement = localStorage.getItem('clientPortalEngagement');
+          if (cachedEngagement) {
+            const engagement = JSON.parse(cachedEngagement);
+            // Find artifact in workPackage items
+            if (engagement.workPackage?.items) {
+              for (const item of engagement.workPackage.items) {
+                if (item.artifacts) {
+                  const foundArtifact = item.artifacts.find(a => a.id === artifactId);
+                  if (foundArtifact) {
+                    setArtifact(foundArtifact);
+                    setLoading(false);
+                    return; // Found in cache, skip API call
+                  }
+                }
+              }
+            }
+          }
+        } catch (cacheError) {
+          console.warn('Failed to read from cache:', cacheError);
+        }
+      }
+
+      // Fallback: Fetch from API if not in cache
       try {
         const artifactResponse = await api.get(`/api/work/${artifactId}`);
         if (artifactResponse.data?.success) {
