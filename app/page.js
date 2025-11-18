@@ -1,3 +1,5 @@
-// Main page is now splash - no redirect needed
+'use client';
+
+// Main page is now splash - re-export the splash component
 export { default } from './splash/page';
 

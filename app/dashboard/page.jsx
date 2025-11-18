@@ -72,11 +72,16 @@ export default function ClientPortalDashboard() {
             setContactName(firstName.charAt(0).toUpperCase() + firstName.slice(1));
           }
 
-           // Call engagement endpoint (fetches by contactId internally)
+           // Call engagement endpoint - can pass workPackageId if available
+           // For now, it will find by contactId (like main app pattern)
            const engagementResponse = await api.get('/api/client/engagement');
            
            if (engagementResponse.data?.success) {
              setWorkPackage(engagementResponse.data.workPackage);
+             // Store workPackageId if available
+             if (engagementResponse.data.workPackageId) {
+               localStorage.setItem('clientPortalWorkPackageId', engagementResponse.data.workPackageId);
+             }
              // Store company info for display
              if (engagementResponse.data.company) {
                setContactName(engagementResponse.data.company.companyName || contactName);
