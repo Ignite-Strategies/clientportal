@@ -44,7 +44,7 @@ export default function DeliverableItemCard({ item }) {
             onClick={handleView}
             className="px-4 py-2 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 transition"
           >
-            View
+            See Deliverable
           </button>
         ) : (
           <span className="px-4 py-2 text-gray-400 font-semibold">

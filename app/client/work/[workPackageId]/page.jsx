@@ -4,13 +4,42 @@ import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { auth } from '@/lib/firebase';
 import api from '@/lib/api';
-import PhaseCard from '@/app/components/PhaseCard';
 import DeliverableItemCard from '@/app/components/DeliverableItemCard';
 import StatusBadge from '@/app/components/StatusBadge';
+import { getStatusConfig } from '@/app/components/statusConfig';
+
+/**
+ * Determine if a phase is complete
+ * A phase is complete when all its items have status 'completed'
+ */
+function isPhaseComplete(phase) {
+  if (!phase?.items || phase.items.length === 0) return false;
+  return phase.items.every(item => {
+    const status = (item.status || '').toLowerCase();
+    return status === 'completed' || status === 'complete';
+  });
+}
+
+/**
+ * Get current phase index based on completion logic
+ * Returns the first phase that is not complete
+ */
+function getCurrentPhaseIndex(phases) {
+  if (!phases || phases.length === 0) return 0;
+  
+  for (let i = 0; i < phases.length; i++) {
+    if (!isPhaseComplete(phases[i])) {
+      return i;
+    }
+  }
+  
+  // All phases complete, return last phase
+  return phases.length - 1;
+}
 
 /**
  * Client Portal Work Package View
- * Phase-first hierarchy with progressive disclosure
+ * Shows welcome message, workpackage name, current phase with deliverables
  */
 export default function WorkPackageView() {
   const params = useParams();
@@ -19,7 +48,8 @@ export default function WorkPackageView() {
   
   const [workPackage, setWorkPackage] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [expandedPhaseId, setExpandedPhaseId] = useState(null);
+  const [clientName, setClientName] = useState('');
+  const [currentPhaseIndex, setCurrentPhaseIndex] = useState(0);
 
   useEffect(() => {
     const { onAuthStateChanged } = require('firebase/auth');
@@ -64,13 +94,21 @@ export default function WorkPackageView() {
         
         setWorkPackage(wp);
         
-        // Auto-expand first phase (current phase)
-        if (wp.phases && wp.phases.length > 0) {
-          console.log('📂 [WorkPackage] Auto-expanding first phase:', wp.phases[0].id);
-          setExpandedPhaseId(wp.phases[0].id);
-        }
+        // Get client name from contact or company
+        const contactName = wp.contact?.firstName || '';
+        const companyName = wp.company?.companyName || '';
+        const name = companyName || contactName || 'there';
+        setClientName(name);
         
-        console.log('✅ [WorkPackage] Load complete!');
+        // Determine current phase based on completion logic
+        const phases = wp.phases || [];
+        const currentIdx = getCurrentPhaseIndex(phases);
+        setCurrentPhaseIndex(currentIdx);
+        
+        console.log('✅ [WorkPackage] Load complete!', {
+          clientName: name,
+          currentPhaseIndex: currentIdx,
+        });
       } else {
         console.warn('⚠️ [WorkPackage] No work package in response');
       }
@@ -116,8 +154,21 @@ export default function WorkPackageView() {
   }
 
   const phases = workPackage.phases || [];
-  const currentPhase = phases[0] || null;
-  const nextPhase = phases[1] || null;
+  const currentPhase = phases[currentPhaseIndex] || null;
+  const nextPhaseIndex = currentPhaseIndex + 1;
+  const previousPhaseIndex = currentPhaseIndex - 1;
+  const nextPhase = phases[nextPhaseIndex] || null;
+  const previousPhase = phases[previousPhaseIndex] || null;
+  const hasMultiplePhases = phases.length > 1;
+
+  // Get current phase status
+  const currentPhaseStatus = currentPhase ? (
+    isPhaseComplete(currentPhase) ? 'completed' :
+    currentPhase.items?.some(item => {
+      const status = (item.status || '').toLowerCase();
+      return status === 'in_progress' || status === 'in progress';
+    }) ? 'in_progress' : 'not_started'
+  ) : 'not_started';
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-black via-gray-900 to-gray-800">
@@ -140,14 +191,14 @@ export default function WorkPackageView() {
 
       {/* Main Content */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Project Header */}
+        {/* Welcome Message */}
         <div className="mb-8">
           <h1 className="text-4xl font-bold text-white mb-2">
-            {workPackage.title || 'Project Overview'}
+            Welcome{clientName ? `, ${clientName}` : ''}!
           </h1>
-          {workPackage.description && (
-            <p className="text-xl text-gray-400">{workPackage.description}</p>
-          )}
+          <p className="text-xl text-gray-400">
+            {workPackage.title || 'Project Overview'}
+          </p>
           {workPackage.company?.companyName && (
             <p className="text-sm text-gray-500 mt-2">
               {workPackage.company.companyName}
@@ -155,46 +206,110 @@ export default function WorkPackageView() {
           )}
         </div>
 
-        {/* Current Phase (Expanded) */}
+        {/* Current Phase */}
         {currentPhase && (
           <div className="mb-8">
             <div className="flex items-center gap-3 mb-4">
               <h2 className="text-2xl font-semibold text-white">Current Phase</h2>
-              <StatusBadge status={currentPhase.items?.some(item => item.status === 'in_progress') ? 'in_progress' : 'not_started'} />
+              <StatusBadge status={currentPhaseStatus} />
             </div>
-            <PhaseCard
-              phase={currentPhase}
-              expanded={expandedPhaseId === currentPhase.id}
-              onToggle={() => setExpandedPhaseId(expandedPhaseId === currentPhase.id ? null : currentPhase.id)}
-            />
+            
+            {/* Phase Info */}
+            <div className="bg-gray-900 border border-gray-700 rounded-lg p-6 mb-4">
+              <div className="mb-4">
+                <h3 className="text-xl font-semibold text-white mb-2">
+                  {currentPhase.name}
+                </h3>
+                {currentPhase.description && (
+                  <p className="text-gray-400">{currentPhase.description}</p>
+                )}
+                {currentPhase.position && (
+                  <p className="text-sm text-gray-500 mt-2">
+                    Phase {currentPhase.position}
+                  </p>
+                )}
+              </div>
+
+              {/* Deliverables for Current Phase */}
+              {currentPhase.items && currentPhase.items.length > 0 ? (
+                <div className="space-y-3">
+                  <h4 className="text-sm font-semibold text-gray-300 uppercase tracking-wide mb-3">
+                    Deliverables
+                  </h4>
+                  {currentPhase.items.map((item) => (
+                    <div
+                      key={item.id}
+                      className={`p-4 border rounded-lg transition ${
+                        item.status === 'completed' || item.status === 'complete'
+                          ? 'bg-green-900/20 border-green-700/50'
+                          : item.status === 'in_progress' || item.status === 'in progress'
+                          ? 'bg-blue-900/20 border-blue-700/50'
+                          : 'bg-gray-800 border-gray-700'
+                      }`}
+                    >
+                      <DeliverableItemCard item={item} />
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-gray-400 text-center py-4">No deliverables in this phase</p>
+              )}
+            </div>
           </div>
         )}
 
-        {/* Next Phase (Collapsed Preview) */}
-        {nextPhase && (
-          <div className="mb-8">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-2xl font-semibold text-white">Up Next</h2>
-            </div>
-            <PhaseCard
-              phase={nextPhase}
-              expanded={expandedPhaseId === nextPhase.id}
-              onToggle={() => setExpandedPhaseId(expandedPhaseId === nextPhase.id ? null : nextPhase.id)}
-            />
+        {/* Phase Navigation */}
+        {hasMultiplePhases && (
+          <div className="mb-8 flex flex-col sm:flex-row gap-4 justify-center items-center">
+            {previousPhase && (
+              <button
+                onClick={() => {
+                  setCurrentPhaseIndex(previousPhaseIndex);
+                  window.scrollTo({ top: 0, behavior: 'smooth' });
+                }}
+                className="px-6 py-3 bg-gray-700 text-white font-semibold rounded-lg hover:bg-gray-600 transition shadow-lg"
+              >
+                ← Previous Phase
+              </button>
+            )}
+            
+            {nextPhase && (
+              <button
+                onClick={() => {
+                  setCurrentPhaseIndex(nextPhaseIndex);
+                  window.scrollTo({ top: 0, behavior: 'smooth' });
+                }}
+                className="px-6 py-3 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 transition shadow-lg"
+              >
+                Next Phase →
+              </button>
+            )}
+
+            {phases.length > 2 && (
+              <>
+                <span className="text-gray-400">or</span>
+                <button
+                  onClick={() => router.push(`/client/work/${workPackageId}/overview`)}
+                  className="px-6 py-3 bg-purple-600 text-white font-semibold rounded-lg hover:bg-purple-700 transition shadow-lg"
+                >
+                  See Entire Project
+                </button>
+              </>
+            )}
           </div>
         )}
 
-        {/* See Full Overview CTA */}
-        {phases.length > 2 && (
+        {/* See Other Phases / See Entire Project CTA */}
+        {phases.length > 1 && (
           <div className="mb-8 text-center">
             <button
               onClick={() => router.push(`/client/work/${workPackageId}/overview`)}
-              className="px-8 py-4 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 transition shadow-lg"
+              className="px-8 py-4 bg-gradient-to-r from-blue-600 to-purple-600 text-white font-semibold rounded-lg hover:from-blue-700 hover:to-purple-700 transition shadow-lg"
             >
-              See Full Project Overview
+              {phases.length > 2 ? `See All ${phases.length} Phases` : 'See Other Phases'}
             </button>
             <p className="text-sm text-gray-400 mt-2">
-              View all {phases.length} phases
+              View complete project overview
             </p>
           </div>
         )}
