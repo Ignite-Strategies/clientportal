@@ -27,7 +27,7 @@ export default function ClientPortalDashboard() {
   const [workPackage, setWorkPackage] = useState(null);
   const [contactEmail, setContactEmail] = useState('');
   const [contactName, setContactName] = useState('');
-  const [hasPendingInvoices, setHasPendingInvoices] = useState(false);
+  const [pendingInvoices, setPendingInvoices] = useState([]);
 
   useEffect(() => {
     // Use onAuthStateChanged to wait for Firebase auth to initialize
@@ -95,8 +95,8 @@ export default function ClientPortalDashboard() {
             const invoicesResponse = await api.get('/api/invoices');
             if (invoicesResponse.data?.success) {
               const invoices = invoicesResponse.data.invoices || [];
-              const pending = invoices.some((inv) => inv.status === 'pending');
-              setHasPendingInvoices(pending);
+              const pending = invoices.filter((inv) => inv.status === 'pending');
+              setPendingInvoices(pending);
             }
           } catch (invoiceError) {
             console.warn('Could not fetch invoices:', invoiceError);
@@ -189,19 +189,52 @@ export default function ClientPortalDashboard() {
                )}
              </div>
 
-            {/* Billing Summary - Simple block if pending invoices */}
-            {hasPendingInvoices && (
-              <div className="mb-8 bg-gray-900 border border-gray-700 rounded-lg p-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <h3 className="text-lg font-semibold text-white mb-1">Billing</h3>
-                    <p className="text-gray-400">You have one payment due.</p>
+            {/* Invoice Notification - User-facing alert for pending invoices */}
+            {pendingInvoices.length > 0 && (
+              <div className="mb-8 bg-gradient-to-r from-yellow-600/20 to-amber-500/20 border-2 border-yellow-500/50 rounded-lg p-6">
+                <div className="flex items-start justify-between">
+                  <div className="flex-1">
+                    <div className="flex items-center gap-3 mb-2">
+                      <div className="p-2 bg-yellow-500/20 rounded-full">
+                        <svg className="w-5 h-5 text-yellow-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                      </div>
+                      <h3 className="text-lg font-semibold text-white">Invoice Due</h3>
+                    </div>
+                    <p className="text-gray-300 mb-3">
+                      {pendingInvoices.length === 1 
+                        ? `You have ${pendingInvoices.length} payment due.`
+                        : `You have ${pendingInvoices.length} payments due.`
+                      }
+                    </p>
+                    {pendingInvoices.length === 1 && pendingInvoices[0] && (
+                      <div className="bg-gray-900/50 rounded-lg p-4 mb-3">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <p className="text-sm text-gray-400">Invoice {pendingInvoices[0].invoiceNumber}</p>
+                            <p className="text-xl font-bold text-white mt-1">
+                              ${pendingInvoices[0].amount.toFixed(2)} {pendingInvoices[0].currency}
+                            </p>
+                            {pendingInvoices[0].dueDate && (
+                              <p className="text-sm text-gray-400 mt-1">
+                                Due: {new Date(pendingInvoices[0].dueDate).toLocaleDateString('en-US', {
+                                  year: 'numeric',
+                                  month: 'short',
+                                  day: 'numeric',
+                                })}
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    )}
                   </div>
                   <button
                     onClick={() => router.push('/settings/billing')}
-                    className="px-6 py-2 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 transition"
+                    className="ml-4 px-6 py-3 bg-yellow-500 text-gray-900 font-semibold rounded-lg hover:bg-yellow-400 transition shadow-lg whitespace-nowrap"
                   >
-                    Pay Now
+                    View Invoices
                   </button>
                 </div>
               </div>
