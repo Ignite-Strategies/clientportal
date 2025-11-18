@@ -43,12 +43,29 @@ function WelcomeContent() {
        */
       const hydrateContact = async () => {
         try {
+          console.log('🔄 [Welcome] Starting contact hydration...');
+          console.log('👤 [Welcome] Firebase UID:', firebaseUser.uid);
+          
           // Fetch contact by Firebase UID
+          console.log('🌐 [Welcome] Calling /api/client...');
           const hydrationResponse = await api.get(`/api/client`);
+          
+          console.log('📥 [Welcome] API Response:', {
+            success: hydrationResponse.data?.success,
+            hasData: !!hydrationResponse.data?.data,
+            response: hydrationResponse.data,
+          });
           
           if (hydrationResponse.data?.success && hydrationResponse.data.data) {
             const contact = hydrationResponse.data.data.contact;
             const firebaseUid = firebaseUser.uid;
+            
+            console.log('✅ [Welcome] Contact hydrated:', {
+              contactId: contact.id,
+              contactCompanyId: contact.contactCompanyId,
+              email: contact.email,
+              companyName: contact.contactCompany?.companyName,
+            });
             
             // Get client name (company name or contact name)
             const name = contact.contactCompany?.companyName || 
@@ -59,24 +76,40 @@ function WelcomeContent() {
             
             // Store in localStorage (MVP1 - simple storage)
             if (typeof window !== 'undefined') {
+              console.log('💾 [Welcome] Storing to localStorage...');
               localStorage.setItem('clientPortalContactId', contact.id);
               localStorage.setItem('clientPortalContactCompanyId', contact.contactCompanyId || '');
               localStorage.setItem('clientPortalContactEmail', contact.email || '');
               localStorage.setItem('firebaseId', firebaseUid);
               // Store workPackageId if available from company
               if (hydrationResponse.data.data.workPackageId) {
+                console.log('💾 [Welcome] Storing workPackageId:', hydrationResponse.data.data.workPackageId);
                 localStorage.setItem('clientPortalWorkPackageId', hydrationResponse.data.data.workPackageId);
               }
+              
+              console.log('✅ [Welcome] localStorage updated:', {
+                contactId: localStorage.getItem('clientPortalContactId'),
+                contactCompanyId: localStorage.getItem('clientPortalContactCompanyId'),
+                email: localStorage.getItem('clientPortalContactEmail'),
+                workPackageId: localStorage.getItem('clientPortalWorkPackageId'),
+              });
             }
             
             setLoading(false);
             setReady(true);
+            console.log('✅ [Welcome] Contact hydration complete!');
           } else {
-            console.error('❌ Failed to hydrate contact');
+            console.error('❌ [Welcome] Failed to hydrate contact - invalid response');
             router.replace('/login');
           }
         } catch (error) {
-          console.error('❌ Welcome loader error:', error);
+          console.error('❌ [Welcome] Contact hydration error:', error);
+          console.error('❌ [Welcome] Error details:', {
+            message: error.message,
+            response: error.response?.data,
+            status: error.response?.status,
+            stack: error.stack,
+          });
           router.replace('/login');
         }
       };

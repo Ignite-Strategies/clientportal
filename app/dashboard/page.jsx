@@ -48,6 +48,8 @@ export default function ClientPortalDashboard() {
            */
           const hydrateEngagement = async () => {
             try {
+              console.log('🔄 [Dashboard] Starting hydration...');
+              
               // Read from localStorage (set in Step 1: Welcome)
               const contactId = typeof window !== 'undefined' 
                 ? localStorage.getItem('clientPortalContactId')
@@ -62,8 +64,15 @@ export default function ClientPortalDashboard() {
                 ? localStorage.getItem('clientPortalWorkPackageId')
                 : null;
 
+              console.log('📦 [Dashboard] localStorage values:', {
+                contactId,
+                contactCompanyId,
+                storedEmail,
+                storedWorkPackageId,
+              });
+
               if (!contactId || !contactCompanyId) {
-                console.log('⚠️ No contact session found, redirecting to welcome');
+                console.warn('⚠️ [Dashboard] No contact session found, redirecting to welcome');
                 router.replace('/welcome');
                 return;
               }
@@ -79,13 +88,25 @@ export default function ClientPortalDashboard() {
               // Second hydration: Get full company object with workPackages
               // Engagement endpoint uses contactCompanyId to hydrate company
               // Company object will have workPackages array with workPackageId
-              const engagementResponse = await api.get(
-                storedWorkPackageId 
-                  ? `/api/client/work?workPackageId=${storedWorkPackageId}`
-                  : '/api/client/work'
-              );
+              const apiUrl = storedWorkPackageId 
+                ? `/api/client/work?workPackageId=${storedWorkPackageId}`
+                : '/api/client/work';
+              
+              console.log('🌐 [Dashboard] Calling API:', apiUrl);
+              const engagementResponse = await api.get(apiUrl);
+              
+              console.log('✅ [Dashboard] API Response received:', {
+                success: engagementResponse.data?.success,
+                hasWorkPackage: !!engagementResponse.data?.workPackage,
+                workPackageId: engagementResponse.data?.workPackageId,
+                hasCompany: !!engagementResponse.data?.company,
+                responseData: engagementResponse.data,
+              });
            
               if (engagementResponse.data?.success) {
+                console.log('✅ [Dashboard] Hydration successful!');
+                console.log('📊 [Dashboard] Work Package:', engagementResponse.data.workPackage);
+                
                 setWorkPackage(engagementResponse.data.workPackage);
                 
                 // Store workPackageId from response
@@ -94,6 +115,7 @@ export default function ClientPortalDashboard() {
                             engagementResponse.data.company?.workPackageId ||
                             storedWorkPackageId;
                 if (wpId) {
+                  console.log('💾 [Dashboard] Storing workPackageId:', wpId);
                   localStorage.setItem('clientPortalWorkPackageId', wpId);
                 }
                 
@@ -101,24 +123,37 @@ export default function ClientPortalDashboard() {
                 if (engagementResponse.data.company) {
                   setContactName(engagementResponse.data.company.companyName || contactName);
                 }
+                
+                console.log('✅ [Dashboard] Hydration complete - work package set in state');
+              } else {
+                console.warn('⚠️ [Dashboard] API returned success:false', engagementResponse.data);
               }
 
           // Check for pending invoices (billing summary)
           try {
+            console.log('💰 [Dashboard] Fetching invoices...');
             const invoicesResponse = await api.get('/api/client/billing');
             if (invoicesResponse.data?.success) {
               const invoices = invoicesResponse.data.invoices || [];
               const pending = invoices.filter((inv) => inv.status === 'pending');
+              console.log('✅ [Dashboard] Invoices loaded:', { total: invoices.length, pending: pending.length });
               setPendingInvoices(pending);
             }
           } catch (invoiceError) {
-            console.warn('Could not fetch invoices:', invoiceError);
+            console.warn('⚠️ [Dashboard] Could not fetch invoices:', invoiceError);
             // Continue - billing summary is optional
           }
         } catch (error) {
-          console.error('❌ Dashboard hydration error:', error);
+          console.error('❌ [Dashboard] Hydration error:', error);
+          console.error('❌ [Dashboard] Error details:', {
+            message: error.message,
+            response: error.response?.data,
+            status: error.response?.status,
+            stack: error.stack,
+          });
           // Continue - show empty state
         } finally {
+          console.log('🏁 [Dashboard] Hydration flow complete, setting loading to false');
           setLoading(false);
         }
       };

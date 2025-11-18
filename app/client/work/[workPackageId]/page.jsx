@@ -40,21 +40,50 @@ export default function WorkPackageView() {
 
   const loadWorkPackage = async () => {
     try {
+      console.log('🔄 [WorkPackage] Starting load...', { workPackageId });
       setLoading(true);
-      const response = await api.get(`/api/client/work?workPackageId=${workPackageId}`);
+      
+      const apiUrl = `/api/client/work?workPackageId=${workPackageId}`;
+      console.log('🌐 [WorkPackage] Calling API:', apiUrl);
+      const response = await api.get(apiUrl);
+      
+      console.log('📥 [WorkPackage] API Response:', {
+        success: response.data?.success,
+        hasWorkPackage: !!response.data?.workPackage,
+        phasesCount: response.data?.workPackage?.phases?.length || 0,
+        response: response.data,
+      });
       
       if (response.data?.success && response.data.workPackage) {
         const wp = response.data.workPackage;
+        console.log('✅ [WorkPackage] Work package loaded:', {
+          id: wp.id,
+          title: wp.title,
+          phasesCount: wp.phases?.length || 0,
+        });
+        
         setWorkPackage(wp);
         
         // Auto-expand first phase (current phase)
         if (wp.phases && wp.phases.length > 0) {
+          console.log('📂 [WorkPackage] Auto-expanding first phase:', wp.phases[0].id);
           setExpandedPhaseId(wp.phases[0].id);
         }
+        
+        console.log('✅ [WorkPackage] Load complete!');
+      } else {
+        console.warn('⚠️ [WorkPackage] No work package in response');
       }
     } catch (error) {
-      console.error('❌ Error loading work package:', error);
+      console.error('❌ [WorkPackage] Error loading work package:', error);
+      console.error('❌ [WorkPackage] Error details:', {
+        message: error.message,
+        response: error.response?.data,
+        status: error.response?.status,
+        stack: error.stack,
+      });
     } finally {
+      console.log('🏁 [WorkPackage] Load flow complete');
       setLoading(false);
     }
   };

@@ -38,16 +38,45 @@ export default function ArtifactView() {
 
   const loadArtifact = async () => {
     try {
+      console.log('🔄 [Artifact] Starting load...', { artifactId });
       setLoading(true);
-      const response = await api.get(`/api/client/work/artifacts/${artifactId}`);
+      
+      const apiUrl = `/api/client/work/artifacts/${artifactId}`;
+      console.log('🌐 [Artifact] Calling API:', apiUrl);
+      const response = await api.get(apiUrl);
+      
+      console.log('📥 [Artifact] API Response:', {
+        success: response.data?.success,
+        hasArtifact: !!response.data?.artifact,
+        artifactType: response.data?.artifact?.type,
+        response: response.data,
+      });
       
       if (response.data?.success && response.data.artifact) {
+        console.log('✅ [Artifact] Artifact loaded:', {
+          id: response.data.artifact.id,
+          type: response.data.artifact.type,
+          title: response.data.artifact.title,
+          status: response.data.artifact.status,
+        });
+        
         setArtifact(response.data.artifact);
         setWorkPackageItem(response.data.workPackageItem);
+        
+        console.log('✅ [Artifact] Load complete!');
+      } else {
+        console.warn('⚠️ [Artifact] No artifact in response');
       }
     } catch (error) {
-      console.error('❌ Error loading artifact:', error);
+      console.error('❌ [Artifact] Error loading artifact:', error);
+      console.error('❌ [Artifact] Error details:', {
+        message: error.message,
+        response: error.response?.data,
+        status: error.response?.status,
+        stack: error.stack,
+      });
     } finally {
+      console.log('🏁 [Artifact] Load flow complete');
       setLoading(false);
     }
   };
