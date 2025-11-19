@@ -34,7 +34,7 @@ export async function GET(request) {
     const firebaseUid = decodedToken.uid;
     console.log('🔍 Looking up contact by firebaseUid:', firebaseUid);
 
-    // FIND contact by Firebase UID
+    // Step 1: Get contact by Firebase UID
     let contact;
     try {
       contact = await prisma.contact.findUnique({
@@ -44,17 +44,7 @@ export async function GET(request) {
           firstName: true,
           lastName: true,
           email: true,
-          role: true,
-          ownerId: true,
-          crmId: true,
-          isActivated: true,
           contactCompanyId: true,
-          contactCompany: {
-            select: {
-              id: true,
-              companyName: true,
-            },
-          },
         },
       });
       console.log('🔍 Contact lookup result:', contact ? `Found contact ${contact.id}` : 'Contact not found');
@@ -78,68 +68,67 @@ export async function GET(request) {
       );
     }
 
-    // Find workPackageId (by contactId OR companyId)
-    // This is the ID-only lookup - full hydration happens on dashboard/workPackage pages
+    // Step 2: Get company by contactCompanyId
+    let company = null;
     let workPackageId = null;
-    try {
-      const workPackage = await prisma.workPackage.findFirst({
-        where: {
-          OR: [
-            { contactId: contact.id },
-            // Also check companyId if contact has contactCompanyId
-            ...(contact.contactCompanyId ? [{ companyId: contact.contactCompanyId }] : []),
-          ],
-        },
+    
+    if (contact.contactCompanyId) {
+      company = await prisma.company.findUnique({
+        where: { id: contact.contactCompanyId },
         select: {
           id: true,
+          companyName: true,
         },
-        orderBy: { createdAt: 'desc' },
       });
-      
-      if (workPackage) {
-        workPackageId = workPackage.id;
-        console.log('✅ Found workPackageId:', workPackageId);
-      } else {
-        console.log('⚠️ No work package found for contact');
+
+      // Step 3: Get latest WorkPackage for this company
+      // Single source of truth: company → workPackages (latest)
+      if (company) {
+        const workPackage = await prisma.workPackage.findFirst({
+          where: {
+            companyId: company.id, // ONLY companyId - no OR, no fallback
+          },
+          select: {
+            id: true,
+          },
+          orderBy: { createdAt: 'desc' },
+        });
+
+        if (workPackage) {
+          workPackageId = workPackage.id;
+        }
       }
-    } catch (wpError) {
-      console.error('⚠️ Error fetching workPackageId:', wpError);
-      // Don't fail the whole request if workPackage lookup fails
     }
 
-    // Build hydration response (CONTACT + COMPANY + WORKPACKAGE ID)
+    // Build hydration response - ONLY what architecture specifies
     const hydrationData = {
       contact: {
         id: contact.id,
         firstName: contact.firstName,
         lastName: contact.lastName,
         email: contact.email,
-        role: contact.role || 'contact',
-        ownerId: contact.ownerId,
-        crmId: contact.crmId,
-        isActivated: contact.isActivated,
         contactCompanyId: contact.contactCompanyId,
-        companyName: contact.contactCompany?.companyName || null,
       },
-      company: contact.contactCompany
+      company: company
         ? {
-            id: contact.contactCompany.id,
-            companyName: contact.contactCompany.companyName,
+            id: company.id,
+            companyName: company.companyName,
           }
         : null,
-      workPackageId: workPackageId, // ID only - no hydration
-      firebaseUid: firebaseUid,
+      workPackageId: workPackageId, // ALWAYS return this (even if null)
     };
 
     console.log('✅ Contact hydration complete:', {
       contactId: contact.id,
       companyId: contact.contactCompanyId,
-      workPackageId: workPackageId,
+      workPackageId: workPackageId || 'null',
     });
 
     return NextResponse.json({
       success: true,
-      data: hydrationData,
+      contact: hydrationData.contact,
+      company: hydrationData.company,
+      workPackageId: hydrationData.workPackageId,
     });
   } catch (error) {
     console.error('❌ Client hydration error:', error);

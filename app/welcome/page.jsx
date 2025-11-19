@@ -56,35 +56,43 @@ function WelcomeContent() {
             response: hydrationResponse.data,
           });
           
-          if (hydrationResponse.data?.success && hydrationResponse.data.data) {
-            const contact = hydrationResponse.data.data.contact;
+          if (hydrationResponse.data?.success) {
+            const contact = hydrationResponse.data.contact;
+            const company = hydrationResponse.data.company;
+            const workPackageId = hydrationResponse.data.workPackageId;
             const firebaseUid = firebaseUser.uid;
             
             console.log('✅ [Welcome] Contact hydrated:', {
               contactId: contact.id,
               contactCompanyId: contact.contactCompanyId,
               email: contact.email,
-              companyName: contact.contactCompany?.companyName,
+              companyName: company?.companyName,
+              workPackageId: workPackageId || 'null',
             });
             
             // Get client name (company name or contact name)
-            const name = contact.contactCompany?.companyName || 
+            const name = company?.companyName || 
                         contact.firstName || 
                         contact.email?.split('@')[0] || 
                         'there';
             setClientName(name);
             
-            // Store in localStorage (MVP1 - simple storage)
+            // Store in localStorage - SINGLE SOURCE OF TRUTH
+            // workPackageId is written ONCE here, never overwritten
             if (typeof window !== 'undefined') {
               console.log('💾 [Welcome] Storing to localStorage...');
               localStorage.setItem('clientPortalContactId', contact.id);
               localStorage.setItem('clientPortalContactCompanyId', contact.contactCompanyId || '');
               localStorage.setItem('clientPortalContactEmail', contact.email || '');
               localStorage.setItem('firebaseId', firebaseUid);
-              // Store workPackageId if available from company
-              if (hydrationResponse.data.data.workPackageId) {
-                console.log('💾 [Welcome] Storing workPackageId:', hydrationResponse.data.data.workPackageId);
-                localStorage.setItem('clientPortalWorkPackageId', hydrationResponse.data.data.workPackageId);
+              
+              // ALWAYS store workPackageId (even if null) - single source of truth
+              if (workPackageId) {
+                console.log('💾 [Welcome] Storing workPackageId:', workPackageId);
+                localStorage.setItem('clientPortalWorkPackageId', workPackageId);
+              } else {
+                console.log('⚠️ [Welcome] No workPackageId to store');
+                localStorage.removeItem('clientPortalWorkPackageId'); // Clear if null
               }
               
               console.log('✅ [Welcome] localStorage updated:', {

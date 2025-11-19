@@ -7,12 +7,7 @@ import Image from 'next/image';
 import api from '@/lib/api';
 import StatusBadge from '@/app/components/StatusBadge';
 import DeliverableItemCard from '@/app/components/DeliverableItemCard';
-import {
-  computeDashboardStats,
-  getNeedsReviewItems,
-  getPhaseData,
-  computeDashboardCTA,
-} from '@/lib/services/WorkPackageDashboardService';
+import { computeDashboardCTA } from '@/lib/services/WorkPackageDashboardService';
 import { mapItemStatus } from '@/lib/services/StatusMapperService';
 
 /**
@@ -89,32 +84,40 @@ export default function ClientPortalDashboard() {
                 setContactName(firstName.charAt(0).toUpperCase() + firstName.slice(1));
               }
 
-              // Dashboard endpoint - server derives workPackageId from firebaseUid → contact → contactCompanyId
-              // NO workPackageId passed from client - all resolution happens server-side
-              console.log('🌐 [Dashboard] Calling API: /api/client/work/dashboard (no params)');
-              const dashboardResponse = await api.get('/api/client/work/dashboard');
+              // Get workPackageId from localStorage (single source of truth from welcome)
+              const storedWorkPackageId = typeof window !== 'undefined'
+                ? localStorage.getItem('clientPortalWorkPackageId')
+                : null;
+
+              if (!storedWorkPackageId) {
+                console.warn('⚠️ [Dashboard] No workPackageId in localStorage');
+                setLoading(false);
+                return;
+              }
+
+              // Call /api/client/allitems with workPackageId from localStorage
+              // NO fallback, NO guessing, NO overwriting localStorage
+              console.log('🌐 [Dashboard] Calling API: /api/client/allitems?workPackageId=' + storedWorkPackageId);
+              const allItemsResponse = await api.get(`/api/client/allitems?workPackageId=${storedWorkPackageId}`);
               
               console.log('✅ [Dashboard] API Response received:', {
-                success: dashboardResponse.data?.success,
-                hasWorkPackage: !!dashboardResponse.data?.workPackage,
-                stats: dashboardResponse.data?.stats,
-                needsReviewCount: dashboardResponse.data?.needsReviewItems?.length || 0,
-                hasCurrentPhase: !!dashboardResponse.data?.currentPhase,
+                success: allItemsResponse.data?.success,
+                hasWorkPackage: !!allItemsResponse.data?.workPackage,
+                stats: allItemsResponse.data?.stats,
               });
            
-              if (dashboardResponse.data?.success) {
+              if (allItemsResponse.data?.success && allItemsResponse.data.workPackage) {
                 console.log('✅ [Dashboard] Hydration successful!');
                 
-                // Reconstruct workPackage object for compatibility with existing components
-                const wp = dashboardResponse.data.workPackage;
-                const stats = dashboardResponse.data.stats;
-                const needsReviewItems = dashboardResponse.data.needsReviewItems || [];
-                const currentPhase = dashboardResponse.data.currentPhase;
+                const wp = allItemsResponse.data.workPackage;
+                const stats = allItemsResponse.data.stats;
+                const needsReviewItems = allItemsResponse.data.needsReviewItems || [];
+                const currentPhase = allItemsResponse.data.currentPhase;
+                const nextPhase = allItemsResponse.data.nextPhase;
                 
-                // Reconstruct items array (only needsReview + currentPhase items for display)
+                // Reconstruct workPackage object for compatibility
                 const items = [...needsReviewItems];
                 if (currentPhase?.items) {
-                  // Add current phase items that aren't already in needsReviewItems
                   currentPhase.items.forEach(item => {
                     if (!items.find(i => i.id === item.id)) {
                       items.push(item);
@@ -122,31 +125,21 @@ export default function ClientPortalDashboard() {
                   });
                 }
                 
-                // Reconstruct phases array (only current phase with items)
-                const phases = currentPhase ? [{
-                  ...currentPhase,
-                  items: currentPhase.items || [],
-                }] : [];
+                const phases = currentPhase ? [currentPhase] : [];
                 
                 setWorkPackage({
                   ...wp,
-                  stats, // Add stats to workPackage for easy access
+                  stats,
+                  needsReviewItems,
                   items,
                   phases,
-                  nextPhase: dashboardResponse.data.nextPhase,
-                  needsReviewItems, // Keep separate for easy access
-                  _dashboardData: dashboardResponse.data, // Store full dashboard response
+                  nextPhase,
+                  _dashboardData: allItemsResponse.data,
                 });
-                
-                // Store company info for display
-                // NOTE: workPackageId is NOT stored - server resolves it on each request
-                if (dashboardResponse.data.company) {
-                  setContactName(dashboardResponse.data.company.companyName || contactName);
-                }
                 
                 console.log('✅ [Dashboard] Hydration complete - dashboard data set in state');
               } else {
-                console.warn('⚠️ [Dashboard] API returned success:false', dashboardResponse.data);
+                console.warn('⚠️ [Dashboard] No work package found or API error');
               }
 
           // Billing removed - refactoring in progress
@@ -290,7 +283,7 @@ export default function ClientPortalDashboard() {
             {/* Section A - Stats */}
             {(() => {
               // Use stats from API (computed server-side) or compute if not available
-              const totals = workPackage.stats || computeDashboardStats(workPackage);
+              const totals = workPackage.stats || { total: 0, completed: 0, inProgress: 0, needsReview: 0, notStarted: 0 };
               
               return (
                 <div className="mb-8 grid grid-cols-2 gap-4 sm:grid-cols-4">
@@ -317,7 +310,7 @@ export default function ClientPortalDashboard() {
             {/* Section B - Big CTA Button */}
             {(() => {
               // Use stats from API or compute if not available
-              const totals = workPackage.stats || computeDashboardStats(workPackage);
+              const totals = workPackage.stats || { total: 0, completed: 0, inProgress: 0, needsReview: 0, notStarted: 0 };
               const cta = computeDashboardCTA(totals);
               const wpId = workPackage.id; // Use workPackage.id from API response only
               

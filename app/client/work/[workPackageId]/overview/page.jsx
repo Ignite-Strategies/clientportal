@@ -11,10 +11,8 @@ import PhaseCard from '@/app/components/PhaseCard';
  * Shows all phases with their deliverables
  */
 export default function WorkPackageOverview() {
-  const params = useParams();
   const router = useRouter();
-  const workPackageId = params.workPackageId;
-  
+  const [workPackageId, setWorkPackageId] = useState(null);
   const [workPackage, setWorkPackage] = useState(null);
   const [loading, setLoading] = useState(true);
   const [expandedPhases, setExpandedPhases] = useState(new Set());
@@ -22,24 +20,36 @@ export default function WorkPackageOverview() {
   useEffect(() => {
     const { onAuthStateChanged } = require('firebase/auth');
     
+    // Get workPackageId from localStorage (single source of truth)
+    const storedWorkPackageId = typeof window !== 'undefined'
+      ? localStorage.getItem('clientPortalWorkPackageId')
+      : null;
+    
+    if (storedWorkPackageId) {
+      setWorkPackageId(storedWorkPackageId);
+    }
+    
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       if (!firebaseUser) {
         router.replace('/login');
         return;
       }
 
-      if (workPackageId) {
-        await loadWorkPackage();
+      if (storedWorkPackageId) {
+        await loadWorkPackage(storedWorkPackageId);
+      } else {
+        console.warn('⚠️ [Overview] No workPackageId in localStorage');
+        setLoading(false);
       }
     });
 
     return () => unsubscribe();
-  }, [workPackageId, router]);
+  }, [router]);
 
-  const loadWorkPackage = async () => {
+  const loadWorkPackage = async (wpId) => {
     try {
       setLoading(true);
-      const response = await api.get(`/api/client/work?workPackageId=${workPackageId}`);
+      const response = await api.get(`/api/client/workpackage?workPackageId=${wpId}`);
       
       if (response.data?.success && response.data.workPackage) {
         const wp = response.data.workPackage;
@@ -103,7 +113,13 @@ export default function WorkPackageOverview() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
           <div className="flex items-center justify-between">
             <button
-              onClick={() => router.push(`/client/work/${workPackageId}`)}
+              onClick={() => {
+                const wpId = typeof window !== 'undefined' 
+                  ? localStorage.getItem('clientPortalWorkPackageId')
+                  : null;
+                if (wpId) router.push(`/client/work/${wpId}`);
+                else router.push('/dashboard');
+              }}
               className="flex items-center gap-2 text-gray-300 hover:text-white transition"
             >
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">

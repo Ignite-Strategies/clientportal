@@ -43,10 +43,12 @@ function getCurrentPhaseIndex(phases) {
  * Shows welcome message, workpackage name, current phase with deliverables
  */
 export default function WorkPackageView() {
-  const params = useParams();
   const router = useRouter();
   const searchParams = useSearchParams();
-  const workPackageId = params.workPackageId;
+  
+  // Get workPackageId from localStorage (single source of truth)
+  // URL param is deprecated - we use localStorage only
+  const [workPackageId, setWorkPackageId] = useState(null);
   
   // Get phaseIndex from URL query param, or default to 0
   const phaseIndexParam = searchParams.get('phaseIndex');
@@ -60,19 +62,31 @@ export default function WorkPackageView() {
   useEffect(() => {
     const { onAuthStateChanged } = require('firebase/auth');
     
+    // Get workPackageId from localStorage (single source of truth)
+    const storedWorkPackageId = typeof window !== 'undefined'
+      ? localStorage.getItem('clientPortalWorkPackageId')
+      : null;
+    
+    if (storedWorkPackageId) {
+      setWorkPackageId(storedWorkPackageId);
+    }
+    
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       if (!firebaseUser) {
         router.replace('/login');
         return;
       }
 
-      if (workPackageId) {
-        await loadWorkPackage();
+      if (storedWorkPackageId) {
+        await loadWorkPackage(storedWorkPackageId);
+      } else {
+        console.warn('⚠️ [WorkPackage] No workPackageId in localStorage');
+        setLoading(false);
       }
     });
 
     return () => unsubscribe();
-  }, [workPackageId, router]);
+  }, [router]);
 
   // Update phase index when URL changes
   useEffect(() => {
@@ -85,12 +99,13 @@ export default function WorkPackageView() {
     }
   }, [searchParams, currentPhaseIndex]);
 
-  const loadWorkPackage = async () => {
+  const loadWorkPackage = async (wpId) => {
     try {
-      console.log('🔄 [WorkPackage] Starting load...', { workPackageId });
+      console.log('🔄 [WorkPackage] Starting load...', { workPackageId: wpId });
       setLoading(true);
       
-      const apiUrl = `/api/client/work?workPackageId=${workPackageId}`;
+      // Use /api/client/workpackage with workPackageId from localStorage
+      const apiUrl = `/api/client/workpackage?workPackageId=${wpId}`;
       console.log('🌐 [WorkPackage] Calling API:', apiUrl);
       const response = await api.get(apiUrl);
       
