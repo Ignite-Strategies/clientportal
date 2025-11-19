@@ -69,15 +69,10 @@ export default function ClientPortalDashboard() {
               const storedEmail = typeof window !== 'undefined' 
                 ? localStorage.getItem('clientPortalContactEmail')
                 : null;
-              const storedWorkPackageId = typeof window !== 'undefined'
-                ? localStorage.getItem('clientPortalWorkPackageId')
-                : null;
-
               console.log('📦 [Dashboard] localStorage values:', {
                 contactId,
                 contactCompanyId,
                 storedEmail,
-                storedWorkPackageId,
               });
 
               if (!contactId || !contactCompanyId) {
@@ -94,14 +89,10 @@ export default function ClientPortalDashboard() {
                 setContactName(firstName.charAt(0).toUpperCase() + firstName.slice(1));
               }
 
-              // Dashboard endpoint - optimized for dashboard view only
-              // Returns: stats, needsReviewItems, currentPhase items only (not all items/phases)
-              const apiUrl = storedWorkPackageId 
-                ? `/api/client/work/dashboard?workPackageId=${storedWorkPackageId}`
-                : '/api/client/work/dashboard';
-              
-              console.log('🌐 [Dashboard] Calling API:', apiUrl);
-              const dashboardResponse = await api.get(apiUrl);
+              // Dashboard endpoint - server derives workPackageId from firebaseUid → contact → contactCompanyId
+              // NO workPackageId passed from client - all resolution happens server-side
+              console.log('🌐 [Dashboard] Calling API: /api/client/work/dashboard (no params)');
+              const dashboardResponse = await api.get('/api/client/work/dashboard');
               
               console.log('✅ [Dashboard] API Response received:', {
                 success: dashboardResponse.data?.success,
@@ -147,14 +138,8 @@ export default function ClientPortalDashboard() {
                   _dashboardData: dashboardResponse.data, // Store full dashboard response
                 });
                 
-                // Store workPackageId from response
-                const wpId = dashboardResponse.data.workPackageId || wp?.id || storedWorkPackageId;
-                if (wpId) {
-                  console.log('💾 [Dashboard] Storing workPackageId:', wpId);
-                  localStorage.setItem('clientPortalWorkPackageId', wpId);
-                }
-                
                 // Store company info for display
+                // NOTE: workPackageId is NOT stored - server resolves it on each request
                 if (dashboardResponse.data.company) {
                   setContactName(dashboardResponse.data.company.companyName || contactName);
                 }
@@ -334,7 +319,7 @@ export default function ClientPortalDashboard() {
               // Use stats from API or compute if not available
               const totals = workPackage.stats || computeDashboardStats(workPackage);
               const cta = computeDashboardCTA(totals);
-              const wpId = workPackage.id || localStorage.getItem('clientPortalWorkPackageId');
+              const wpId = workPackage.id; // Use workPackage.id from API response only
               
               return (
                 <div className="mb-8 text-center">
@@ -370,7 +355,7 @@ export default function ClientPortalDashboard() {
                       </svg>
                       <h3 className="text-lg font-semibold text-white">Needs Your Review</h3>
                     </div>
-                    <p className="text-gray-300">You're all set! No items need your review at this time.</p>
+                    <p className="text-gray-300">You&apos;re all set! No items need your review at this time.</p>
                   </div>
                 );
               }
@@ -406,7 +391,7 @@ export default function ClientPortalDashboard() {
               const dashboardData = workPackage._dashboardData || {};
               const currentPhase = dashboardData.currentPhase || workPackage.phases?.[0];
               const currentPhaseItems = currentPhase?.items || [];
-              const wpId = workPackage.id || localStorage.getItem('clientPortalWorkPackageId');
+              const wpId = workPackage.id; // Use workPackage.id from API response only
               const currentPhaseIndex = dashboardData.currentPhaseIndex ?? 0;
 
               if (!currentPhase) {
@@ -478,7 +463,7 @@ export default function ClientPortalDashboard() {
             {(() => {
               const dashboardData = workPackage._dashboardData || {};
               const nextPhase = dashboardData.nextPhase;
-              const wpId = workPackage.id || localStorage.getItem('clientPortalWorkPackageId');
+              const wpId = workPackage.id; // Use workPackage.id from API response only
               const currentPhaseIndex = dashboardData.currentPhaseIndex ?? 0;
 
               if (!nextPhase) {

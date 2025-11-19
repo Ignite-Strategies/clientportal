@@ -9,6 +9,9 @@ import { mapItemStatus } from '@/lib/services/StatusMapperService';
  * Dashboard-specific endpoint - returns only summary data needed for dashboard
  * Does NOT load all items/phases - only what's needed for the dashboard view
  * 
+ * Server-side workPackageId resolution:
+ * firebaseUid → contact → contactCompanyId → workPackages (latest)
+ * 
  * Returns:
  * - stats: computed counts (total, completed, inProgress, needsReview, notStarted)
  * - needsReviewItems: only items that need review (with minimal workCollateral data)
@@ -22,11 +25,7 @@ export async function GET(request) {
     const decodedToken = await verifyFirebaseToken(request);
     const firebaseUid = decodedToken.uid;
 
-    // Get query params
-    const { searchParams } = request.nextUrl;
-    const workPackageId = searchParams.get('workPackageId');
-
-    // Get contact by Firebase UID
+    // Step 1: Get contact by Firebase UID
     const contact = await prisma.contact.findUnique({
       where: { firebaseUid },
       select: {
@@ -45,62 +44,44 @@ export async function GET(request) {
       );
     }
 
-    // Find work package
-    let workPackage = null;
-    
-    if (workPackageId) {
-      workPackage = await prisma.workPackage.findUnique({
-        where: { id: workPackageId },
-        select: {
-          id: true,
-          title: true,
-          description: true,
-          prioritySummary: true,
-          contactId: true,
-          companyId: true,
+    // Step 2: Resolve companyId via contact.contactCompanyId
+    if (!contact.contactCompanyId) {
+      // No company linked - return empty dashboard
+      return NextResponse.json({
+        success: true,
+        workPackage: null,
+        stats: { total: 0, completed: 0, inProgress: 0, needsReview: 0, notStarted: 0 },
+        needsReviewItems: [],
+        currentPhase: null,
+        nextPhase: null,
+        contact: {
+          id: contact.id,
+          firstName: contact.firstName,
+          lastName: contact.lastName,
+          email: contact.email,
         },
-      });
-
-      // Verify work package belongs to this contact or their company
-      // Note: DB has companyId but should be contactCompanyId - checking both relationships
-      if (workPackage) {
-        const belongsToContact = workPackage.contactId === contact.id;
-        // Check if WorkPackage.companyId matches Contact.contactCompanyId
-        const belongsToCompany = contact.contactCompanyId && workPackage.companyId === contact.contactCompanyId;
-        
-        if (!belongsToContact && !belongsToCompany) {
-          return NextResponse.json(
-            { success: false, error: 'Unauthorized: Work package does not belong to this contact or company' },
-            { status: 403 },
-          );
-        }
-      }
-    } else {
-      // Fallback: Find work package by contactId OR companyId
-      // Note: DB has companyId but should be contactCompanyId - checking both relationships
-      
-      // Build where clause to check both contactId and companyId in one query
-      const whereClause = {
-        OR: [
-          { contactId: contact.id },
-          // If contact has contactCompanyId, also check WorkPackage.companyId matches it
-          ...(contact.contactCompanyId ? [{ companyId: contact.contactCompanyId }] : []),
-        ],
-      };
-
-      workPackage = await prisma.workPackage.findFirst({
-        where: whereClause,
-        select: {
-          id: true,
-          title: true,
-          description: true,
-          prioritySummary: true,
-          contactId: true,
-          companyId: true,
-        },
-        orderBy: { createdAt: 'desc' },
       });
     }
+
+    // Step 3: Find the latest workPackage for that companyId
+    // Note: DB has companyId but should be contactCompanyId - checking both relationships
+    const workPackage = await prisma.workPackage.findFirst({
+      where: {
+        OR: [
+          { contactId: contact.id },
+          { companyId: contact.contactCompanyId },
+        ],
+      },
+      select: {
+        id: true,
+        title: true,
+        description: true,
+        prioritySummary: true,
+        contactId: true,
+        companyId: true,
+      },
+      orderBy: { createdAt: 'desc' },
+    });
 
     if (!workPackage) {
       return NextResponse.json({
