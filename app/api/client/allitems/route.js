@@ -15,7 +15,8 @@ import { mapItemStatus } from '@/lib/services/StatusMapperService';
  * - stats: computed counts
  * - needsReviewItems: items needing review
  * - currentPhase: current phase with items
- * - nextPhase: next phase metadata
+ * - workPackage: work package metadata
+ * - contact: contact information
  */
 export async function GET(request) {
   try {
@@ -191,8 +192,6 @@ export async function GET(request) {
     }
 
     const currentPhase = currentPhaseIndex >= 0 ? allPhases[currentPhaseIndex] : null;
-    const nextPhaseIndex = currentPhaseIndex + 1;
-    const nextPhase = nextPhaseIndex < allPhases.length ? allPhases[nextPhaseIndex] : null;
 
     // Step 9: Get items for current phase only
     let currentPhaseItems = [];
@@ -202,12 +201,7 @@ export async function GET(request) {
 
     return NextResponse.json({
       success: true,
-      workPackage: {
-        id: workPackage.id,
-        title: workPackage.title,
-        description: workPackage.description,
-        prioritySummary: workPackage.prioritySummary || null,
-      },
+      workPackageId: workPackage.id,
       stats,
       needsReviewItems,
       currentPhase: currentPhase
@@ -216,15 +210,18 @@ export async function GET(request) {
             items: currentPhaseItems,
           }
         : null,
-      nextPhase: nextPhase
-        ? {
-            id: nextPhase.id,
-            name: nextPhase.name,
-            description: nextPhase.description,
-            position: nextPhase.position,
-          }
-        : null,
-      currentPhaseIndex,
+      workPackage: {
+        id: workPackage.id,
+        title: workPackage.title,
+        description: workPackage.description,
+        prioritySummary: workPackage.prioritySummary || null,
+      },
+      contact: {
+        id: contact.id,
+        firstName: contact.firstName,
+        lastName: contact.lastName,
+        email: contact.email,
+      },
     });
   } catch (error) {
     console.error('❌ Get allitems error:', error);

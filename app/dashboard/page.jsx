@@ -113,7 +113,6 @@ export default function ClientPortalDashboard() {
                 const stats = allItemsResponse.data.stats;
                 const needsReviewItems = allItemsResponse.data.needsReviewItems || [];
                 const currentPhase = allItemsResponse.data.currentPhase;
-                const nextPhase = allItemsResponse.data.nextPhase;
                 
                 // Reconstruct workPackage object for compatibility
                 const items = [...needsReviewItems];
@@ -133,7 +132,6 @@ export default function ClientPortalDashboard() {
                   needsReviewItems,
                   items,
                   phases,
-                  nextPhase,
                   _dashboardData: allItemsResponse.data,
                 });
                 
@@ -326,31 +324,21 @@ export default function ClientPortalDashboard() {
               );
             })()}
 
-            {/* Section C - Priorities This Week */}
+            {/* Section C - Consultant Priorities This Week */}
             {workPackage.prioritySummary && (
               <div className="mb-8 bg-gradient-to-r from-purple-900/20 to-blue-900/20 border border-purple-700/50 rounded-lg p-6">
-                <h3 className="text-lg font-semibold text-white mb-2">Priorities This Week</h3>
+                <h3 className="text-lg font-semibold text-white mb-2">Consultant Priorities This Week</h3>
                 <p className="text-gray-300">{workPackage.prioritySummary}</p>
               </div>
             )}
 
             {/* Section D - Needs Your Review */}
             {(() => {
-              // Use needsReviewItems from API (only those items) or compute if not available
-              const needsReviewItems = workPackage.needsReviewItems || getNeedsReviewItems(workPackage);
+              // Use needsReviewItems from API (only those items)
+              const needsReviewItems = workPackage.needsReviewItems || [];
               
               if (needsReviewItems.length === 0) {
-                return (
-                  <div className="mb-8 bg-green-900/20 border border-green-700/50 rounded-lg p-6">
-                    <div className="flex items-center gap-3 mb-2">
-                      <svg className="h-5 w-5 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                      </svg>
-                      <h3 className="text-lg font-semibold text-white">Needs Your Review</h3>
-                    </div>
-                    <p className="text-gray-300">You&apos;re all set! No items need your review at this time.</p>
-                  </div>
-                );
+                return null; // Hide section if no items need review
               }
 
               return (
@@ -384,8 +372,6 @@ export default function ClientPortalDashboard() {
               const dashboardData = workPackage._dashboardData || {};
               const currentPhase = dashboardData.currentPhase || workPackage.phases?.[0];
               const currentPhaseItems = currentPhase?.items || [];
-              const wpId = workPackage.id; // Use workPackage.id from API response only
-              const currentPhaseIndex = dashboardData.currentPhaseIndex ?? 0;
 
               if (!currentPhase) {
                 return (
@@ -396,15 +382,15 @@ export default function ClientPortalDashboard() {
               }
 
               // Determine current phase status from items
-              const hasInProgress = currentPhaseItems.some(item => {
-                const status = mapItemStatus(item, item.workCollateral || []);
-                return status === 'IN_PROGRESS';
-              });
-              const allCompleted = currentPhaseItems.length > 0 && currentPhaseItems.every(item => {
-                const status = mapItemStatus(item, item.workCollateral || []);
-                return status === 'COMPLETED';
-              });
-              const phaseStatus = allCompleted ? 'completed' : hasInProgress ? 'in_progress' : 'not_started';
+              const phaseStatuses = currentPhaseItems.map(
+                i => mapItemStatus(i, i.workCollateral || [])
+              );
+
+              const phaseStatus =
+                phaseStatuses.includes("NEEDS_REVIEW") ? "needs_review" :
+                phaseStatuses.includes("IN_PROGRESS") ? "in_progress" :
+                phaseStatuses.every(s => s === "COMPLETED") ? "completed" :
+                "not_started";
 
               return (
                 <div className="mb-8 bg-gray-900 border border-gray-700 rounded-lg">
@@ -422,27 +408,24 @@ export default function ClientPortalDashboard() {
                   </div>
                   <div className="p-6">
                     {currentPhaseItems.length > 0 ? (
-                      <div className="space-y-3">
-                        {currentPhaseItems.map((item) => {
-                          const itemStatus = mapItemStatus(item, item.workCollateral || []);
-                          const statusClassName =
-                            itemStatus === 'COMPLETED'
-                              ? 'bg-green-900/20 border-green-700/50'
-                              : itemStatus === 'NEEDS_REVIEW'
-                              ? 'bg-yellow-900/20 border-yellow-700/50'
-                              : itemStatus === 'IN_PROGRESS'
-                              ? 'bg-blue-900/20 border-blue-700/50'
-                              : 'bg-gray-800 border-gray-700';
-
-                          return (
-                            <div
-                              key={item.id}
-                              className={`p-4 border rounded-lg transition ${statusClassName}`}
-                            >
-                              <DeliverableItemCard item={item} />
+                      <div className="space-y-4">
+                        {currentPhaseItems.map(item => (
+                          <div
+                            key={item.id}
+                            className="flex flex-col bg-gray-900 border border-gray-700 rounded-lg p-4"
+                          >
+                            <div className="flex items-center justify-between">
+                              <h4 className="text-white font-medium">{item.deliverableLabel}</h4>
+                              <StatusBadge status={mapItemStatus(item, item.workCollateral || [])} />
                             </div>
-                          );
-                        })}
+
+                            {item.deliverableDescription && (
+                              <p className="text-gray-400 text-sm mt-1">
+                                {item.deliverableDescription}
+                              </p>
+                            )}
+                          </div>
+                        ))}
                       </div>
                     ) : (
                       <p className="text-gray-400 text-center py-4">No deliverables in this phase</p>
@@ -452,45 +435,15 @@ export default function ClientPortalDashboard() {
               );
             })()}
 
-            {/* Section F - Next Phase Preview */}
-            {(() => {
-              const dashboardData = workPackage._dashboardData || {};
-              const nextPhase = dashboardData.nextPhase;
-              const wpId = workPackage.id; // Use workPackage.id from API response only
-              const currentPhaseIndex = dashboardData.currentPhaseIndex ?? 0;
-
-              if (!nextPhase) {
-                return (
-                  <div className="mb-8 bg-gray-900 border border-gray-700 rounded-lg p-6">
-                    <h3 className="text-lg font-semibold text-white mb-4">All Phases</h3>
-                    <button
-                      onClick={() => router.push(`/client/work/${wpId}?phaseIndex=${currentPhaseIndex}`)}
-                      className="w-full px-4 py-3 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 transition shadow-lg"
-                    >
-                      See Full Project →
-                    </button>
-                  </div>
-                );
-              }
-
-              return (
-                <div className="mb-8 bg-gray-900 border border-gray-700 rounded-lg p-6">
-                  <h3 className="text-lg font-semibold text-white mb-2">Up Next</h3>
-                  <div className="mb-4">
-                    <h4 className="text-base font-medium text-white">{nextPhase.name}</h4>
-                    {nextPhase.description && (
-                      <p className="text-sm text-gray-400 mt-1">{nextPhase.description}</p>
-                    )}
-                  </div>
-                  <button
-                    onClick={() => router.push(`/client/work/${wpId}?phaseIndex=${currentPhaseIndex + 1}`)}
-                    className="w-full px-4 py-3 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 transition shadow-lg"
-                  >
-                    See Full Project →
-                  </button>
-                </div>
-              );
-            })()}
+            {/* View Full Project Footer Button */}
+            <div className="mt-12 text-center">
+              <button
+                onClick={() => router.push(`/client/work/${workPackage.id}`)}
+                className="px-6 py-3 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 transition shadow-lg"
+              >
+                View Full Project →
+              </button>
+            </div>
           </>
         )}
       </main>
