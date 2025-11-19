@@ -1,12 +1,13 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useParams, useRouter } from 'next/navigation';
+import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { auth } from '@/lib/firebase';
 import api from '@/lib/api';
 import DeliverableItemCard from '@/app/components/DeliverableItemCard';
 import StatusBadge from '@/app/components/StatusBadge';
 import { getStatusConfig } from '@/app/components/statusConfig';
+import { mapItemStatus } from '@/lib/services/StatusMapperService';
 
 /**
  * Determine if a phase is complete
@@ -44,12 +45,17 @@ function getCurrentPhaseIndex(phases) {
 export default function WorkPackageView() {
   const params = useParams();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const workPackageId = params.workPackageId;
+  
+  // Get phaseIndex from URL query param, or default to 0
+  const phaseIndexParam = searchParams.get('phaseIndex');
+  const initialPhaseIndex = phaseIndexParam ? parseInt(phaseIndexParam, 10) : null;
   
   const [workPackage, setWorkPackage] = useState(null);
   const [loading, setLoading] = useState(true);
   const [clientName, setClientName] = useState('');
-  const [currentPhaseIndex, setCurrentPhaseIndex] = useState(0);
+  const [currentPhaseIndex, setCurrentPhaseIndex] = useState(initialPhaseIndex ?? 0);
 
   useEffect(() => {
     const { onAuthStateChanged } = require('firebase/auth');
@@ -67,6 +73,17 @@ export default function WorkPackageView() {
 
     return () => unsubscribe();
   }, [workPackageId, router]);
+
+  // Update phase index when URL changes
+  useEffect(() => {
+    const phaseIndexParam = searchParams.get('phaseIndex');
+    if (phaseIndexParam !== null) {
+      const index = parseInt(phaseIndexParam, 10);
+      if (!isNaN(index) && index !== currentPhaseIndex) {
+        setCurrentPhaseIndex(index);
+      }
+    }
+  }, [searchParams, currentPhaseIndex]);
 
   const loadWorkPackage = async () => {
     try {
@@ -100,14 +117,22 @@ export default function WorkPackageView() {
         const name = companyName || contactName || 'there';
         setClientName(name);
         
-        // Determine current phase based on completion logic
+        // Determine current phase based on completion logic (if not set via query param)
         const phases = wp.phases || [];
-        const currentIdx = getCurrentPhaseIndex(phases);
-        setCurrentPhaseIndex(currentIdx);
+        let finalPhaseIndex = currentPhaseIndex;
+        if (initialPhaseIndex === null) {
+          const currentIdx = getCurrentPhaseIndex(phases);
+          finalPhaseIndex = currentIdx;
+          setCurrentPhaseIndex(currentIdx);
+          
+          // Update URL to reflect current phase
+          const newUrl = `/client/work/${workPackageId}?phaseIndex=${currentIdx}`;
+          router.replace(newUrl, { scroll: false });
+        }
         
         console.log('✅ [WorkPackage] Load complete!', {
           clientName: name,
-          currentPhaseIndex: currentIdx,
+          currentPhaseIndex: finalPhaseIndex,
         });
       } else {
         console.warn('⚠️ [WorkPackage] No work package in response');
@@ -154,21 +179,42 @@ export default function WorkPackageView() {
   }
 
   const phases = workPackage.phases || [];
-  const currentPhase = phases[currentPhaseIndex] || null;
-  const nextPhaseIndex = currentPhaseIndex + 1;
-  const previousPhaseIndex = currentPhaseIndex - 1;
+  const safePhaseIndex = Math.max(0, Math.min(currentPhaseIndex, phases.length - 1));
+  const currentPhase = phases[safePhaseIndex] || null;
+  const nextPhaseIndex = safePhaseIndex + 1;
+  const previousPhaseIndex = safePhaseIndex - 1;
   const nextPhase = phases[nextPhaseIndex] || null;
   const previousPhase = phases[previousPhaseIndex] || null;
   const hasMultiplePhases = phases.length > 1;
 
-  // Get current phase status
-  const currentPhaseStatus = currentPhase ? (
-    isPhaseComplete(currentPhase) ? 'completed' :
-    currentPhase.items?.some(item => {
-      const status = (item.status || '').toLowerCase();
-      return status === 'in_progress' || status === 'in progress';
-    }) ? 'in_progress' : 'not_started'
-  ) : 'not_started';
+  // Get current phase status using mapItemStatus for consistency
+  const getPhaseStatus = (phase) => {
+    if (!phase?.items || phase.items.length === 0) return 'not_started';
+    
+    const allCompleted = phase.items.every(item => {
+      const status = mapItemStatus(item, item.workCollateral || []);
+      return status === 'COMPLETED';
+    });
+    
+    if (allCompleted) return 'completed';
+    
+    const hasInProgress = phase.items.some(item => {
+      const status = mapItemStatus(item, item.workCollateral || []);
+      return status === 'IN_PROGRESS';
+    });
+    
+    if (hasInProgress) return 'in_progress';
+    
+    return 'not_started';
+  };
+
+  const currentPhaseStatus = currentPhase ? getPhaseStatus(currentPhase) : 'not_started';
+
+  const navigateToPhase = (phaseIndex) => {
+    const newUrl = `/client/work/${workPackageId}?phaseIndex=${phaseIndex}`;
+    router.push(newUrl);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-black via-gray-900 to-gray-800">
@@ -205,6 +251,45 @@ export default function WorkPackageView() {
             </p>
           )}
         </div>
+
+        {/* Phase Navigation Tabs */}
+        {hasMultiplePhases && (
+          <div className="mb-8 bg-gray-900 border border-gray-700 rounded-lg p-4">
+            <div className="flex flex-wrap gap-2 overflow-x-auto">
+              {phases.map((phase, index) => {
+                const isActive = index === safePhaseIndex;
+                const phaseStatus = getPhaseStatus(phase);
+                const isComplete = phaseStatus === 'completed';
+                
+                return (
+                  <button
+                    key={phase.id}
+                    onClick={() => navigateToPhase(index)}
+                    className={`px-4 py-2 rounded-lg font-medium transition-all whitespace-nowrap ${
+                      isActive
+                        ? 'bg-blue-600 text-white shadow-lg'
+                        : isComplete
+                        ? 'bg-green-900/30 text-green-300 hover:bg-green-900/50'
+                        : 'bg-gray-800 text-gray-300 hover:bg-gray-700'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2">
+                      {isComplete && (
+                        <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                        </svg>
+                      )}
+                      <span>{phase.name}</span>
+                      {isActive && (
+                        <span className="ml-1 text-xs opacity-75">({index + 1}/{phases.length})</span>
+                      )}
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
 
         {/* Current Phase */}
         {currentPhase && (
@@ -258,30 +343,24 @@ export default function WorkPackageView() {
           </div>
         )}
 
-        {/* Phase Navigation */}
+        {/* Phase Navigation Buttons */}
         {hasMultiplePhases && (
           <div className="mb-8 flex flex-col sm:flex-row gap-4 justify-center items-center">
             {previousPhase && (
               <button
-                onClick={() => {
-                  setCurrentPhaseIndex(previousPhaseIndex);
-                  window.scrollTo({ top: 0, behavior: 'smooth' });
-                }}
+                onClick={() => navigateToPhase(previousPhaseIndex)}
                 className="px-6 py-3 bg-gray-700 text-white font-semibold rounded-lg hover:bg-gray-600 transition shadow-lg"
               >
-                ← Previous Phase
+                ← Previous Phase: {previousPhase.name}
               </button>
             )}
             
             {nextPhase && (
               <button
-                onClick={() => {
-                  setCurrentPhaseIndex(nextPhaseIndex);
-                  window.scrollTo({ top: 0, behavior: 'smooth' });
-                }}
+                onClick={() => navigateToPhase(nextPhaseIndex)}
                 className="px-6 py-3 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 transition shadow-lg"
               >
-                Next Phase →
+                Next Phase: {nextPhase.name} →
               </button>
             )}
 

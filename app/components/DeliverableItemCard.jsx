@@ -9,16 +9,16 @@ import StatusBadge from './StatusBadge';
 export default function DeliverableItemCard({ item }) {
   const router = useRouter();
   
-  // Get first artifact if available
-  const firstArtifact = item.artifacts && item.artifacts.length > 0 
-    ? item.artifacts[0] 
+  // Get first workCollateral if available
+  const firstCollateral = item.workCollateral && item.workCollateral.length > 0 
+    ? item.workCollateral[0] 
     : null;
-  const hasArtifacts = item.artifacts && item.artifacts.length > 0;
-  const artifactCount = item.artifacts?.length || 0;
+  const hasCollateral = item.workCollateral && item.workCollateral.length > 0;
+  const collateralCount = item.workCollateral?.length || 0;
 
   const handleView = () => {
-    if (hasArtifacts && firstArtifact) {
-      router.push(`/client/work/artifacts/${firstArtifact.id}`);
+    if (hasCollateral && firstCollateral) {
+      router.push(`/client/work/collateral/${firstCollateral.id}`);
     }
   };
 
@@ -32,14 +32,14 @@ export default function DeliverableItemCard({ item }) {
         {item.deliverableDescription && (
           <p className="text-sm text-gray-400 mt-1">{item.deliverableDescription}</p>
         )}
-        {hasArtifacts && (
+        {hasCollateral && (
           <p className="text-xs text-gray-500 mt-1">
-            {artifactCount} {artifactCount === 1 ? 'artifact' : 'artifacts'} available
+            {collateralCount} {collateralCount === 1 ? 'collateral' : 'collateral'} available
           </p>
         )}
       </div>
       <div>
-        {hasArtifacts ? (
+        {hasCollateral ? (
           <button
             onClick={handleView}
             className="px-4 py-2 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 transition"

@@ -320,11 +320,13 @@ model WorkPackage {
 
   title              String
   description        String?
+  prioritySummary    String?  // consultant-written summary of key focuses
   totalCost          Float?
   effectiveStartDate DateTime?
 
-  phases WorkPackagePhase[]
-  items  WorkPackageItem[]
+  phases        WorkPackagePhase[]
+  items         WorkPackageItem[]
+  workCollateral WorkCollateral[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -370,7 +372,7 @@ model WorkPackageItem {
   estimatedHoursEach Int
   status             String @default("not_started")
 
-  artifacts WorkArtifact[]
+  workCollateral WorkCollateral[]
 
   createdAt DateTime @default(now())
 
@@ -382,10 +384,14 @@ model WorkPackageItem {
   @@map("work_package_items")
 }
 
-model WorkArtifact {
-  id                String          @id @default(cuid())
-  workPackageItemId String
-  workPackageItem   WorkPackageItem @relation(fields: [workPackageItemId], references: [id], onDelete: Cascade)
+model WorkCollateral {
+  id                String           @id @default(cuid())
+  // WorkCollateral can belong to a WorkPackage OR a WorkPackageItem (or both for easier querying)
+  // Typically: workPackageId for package-level collateral, workPackageItemId for item-specific collateral
+  workPackageId     String?
+  workPackage       WorkPackage?     @relation(fields: [workPackageId], references: [id], onDelete: Cascade)
+  workPackageItemId String?
+  workPackageItem   WorkPackageItem? @relation(fields: [workPackageItemId], references: [id], onDelete: Cascade)
 
   type        String // BLOG | PERSONA | CLE_DECK | TEMPLATE | ETC
   title       String?
@@ -399,8 +405,9 @@ model WorkArtifact {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  @@index([workPackageId])
   @@index([workPackageItemId])
   @@index([status])
   @@index([type])
-  @@map("work_artifacts")
+  @@map("work_collateral")
 }

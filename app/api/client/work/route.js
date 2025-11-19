@@ -3,11 +3,13 @@ import { verifyFirebaseToken } from '@/lib/firebaseAdmin';
 import { prisma } from '@/lib/prisma';
 
 /**
- * GET /api/client/work?workPackageId={id}
+ * GET /api/client/work?workPackageId={id}&minimal={true|false}
  * 
  * WorkPackage hydration - Get Company with workPackages, then load WorkPackage with full structure
  * 
- * Optional Query Param: ?workPackageId={id} - Load specific work package
+ * Query Params:
+ * - ?workPackageId={id} - Load specific work package
+ * - ?minimal=true - Return minimal data (dashboard view) - only IDs and status flags for workCollateral
  * 
  * Returns:
  * - { success: true, workPackage: {...}, company: {...} } if work package exists
@@ -19,9 +21,10 @@ export async function GET(request) {
     const decodedToken = await verifyFirebaseToken(request);
     const firebaseUid = decodedToken.uid;
 
-    // Get workPackageId from query params (optional - if provided, use it)
+    // Get query params
     const { searchParams } = request.nextUrl;
     const workPackageId = searchParams.get('workPackageId');
+    const minimal = searchParams.get('minimal') === 'true';
 
     // Get contact by Firebase UID
     const contact = await prisma.contact.findUnique({
@@ -68,7 +71,7 @@ export async function GET(request) {
     let workPackage;
 
     if (finalWorkPackageId) {
-      // Use exact query as specified (artifacts removed until table exists)
+      // Load work package with phases, items, and workCollateral
       workPackage = await prisma.workPackage.findUnique({
         where: { id: finalWorkPackageId },
         include: {
@@ -80,9 +83,33 @@ export async function GET(request) {
           },
           phases: {
             include: {
-              items: true
+              items: {
+                include: {
+                  workCollateral: minimal ? {
+                    select: {
+                      id: true,
+                      status: true,
+                      reviewRequestedAt: true,
+                      // Minimal data for status mapping only (dashboard view)
+                    }
+                  } : true
+                }
+              }
             },
             orderBy: { position: "asc" }
+          },
+          items: {
+            include: {
+              workCollateral: minimal ? {
+                select: {
+                  id: true,
+                  status: true,
+                  reviewRequestedAt: true,
+                  // Minimal data for status mapping only (dashboard view)
+                }
+              } : true
+            },
+            orderBy: { createdAt: "asc" }
           }
         },
       });
@@ -107,9 +134,33 @@ export async function GET(request) {
           },
           phases: {
             include: {
-              items: true
+              items: {
+                include: {
+                  workCollateral: minimal ? {
+                    select: {
+                      id: true,
+                      status: true,
+                      reviewRequestedAt: true,
+                      // Minimal data for status mapping only (dashboard view)
+                    }
+                  } : true
+                }
+              }
             },
             orderBy: { position: "asc" }
+          },
+          items: {
+            include: {
+              workCollateral: minimal ? {
+                select: {
+                  id: true,
+                  status: true,
+                  reviewRequestedAt: true,
+                  // Minimal data for status mapping only (dashboard view)
+                }
+              } : true
+            },
+            orderBy: { createdAt: "asc" }
           }
         },
         orderBy: { createdAt: 'desc' },
@@ -135,14 +186,16 @@ export async function GET(request) {
       });
     }
 
-    // Return work package with phases and artifacts (no transformation needed - use direct structure)
+    // Return work package with phases, items, and workCollateral
     return NextResponse.json({
       success: true,
       workPackage: {
         id: workPackage.id,
         title: workPackage.title,
         description: workPackage.description,
+        prioritySummary: workPackage.prioritySummary || null,
         phases: workPackage.phases || [],
+        items: workPackage.items || [],
         contact: workPackage.contact,
         company: workPackage.company || company,
       },

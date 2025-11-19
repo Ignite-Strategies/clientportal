@@ -7,15 +7,15 @@ import api from '@/lib/api';
 import StatusBadge from '@/app/components/StatusBadge';
 
 /**
- * WorkArtifact Detail View
- * Displays a single artifact with its content
+ * WorkCollateral Detail View
+ * Displays a single workCollateral with its content
  */
-export default function ArtifactView() {
+export default function CollateralView() {
   const params = useParams();
   const router = useRouter();
-  const artifactId = params.artifactId;
+  const artifactId = params.artifactId; // Route param name kept for backward compatibility
   
-  const [artifact, setArtifact] = useState(null);
+  const [collateral, setCollateral] = useState(null);
   const [workPackageItem, setWorkPackageItem] = useState(null);
   const [loading, setLoading] = useState(true);
 
@@ -29,54 +29,54 @@ export default function ArtifactView() {
       }
 
       if (artifactId) {
-        await loadArtifact();
+        await loadCollateral();
       }
     });
 
     return () => unsubscribe();
   }, [artifactId, router]);
 
-  const loadArtifact = async () => {
+  const loadCollateral = async () => {
     try {
-      console.log('🔄 [Artifact] Starting load...', { artifactId });
+      console.log('🔄 [Collateral] Starting load...', { artifactId });
       setLoading(true);
       
       const apiUrl = `/api/client/work/artifacts/${artifactId}`;
-      console.log('🌐 [Artifact] Calling API:', apiUrl);
+      console.log('🌐 [Collateral] Calling API:', apiUrl);
       const response = await api.get(apiUrl);
       
-      console.log('📥 [Artifact] API Response:', {
+      console.log('📥 [Collateral] API Response:', {
         success: response.data?.success,
-        hasArtifact: !!response.data?.artifact,
-        artifactType: response.data?.artifact?.type,
+        hasCollateral: !!response.data?.collateral,
+        collateralType: response.data?.collateral?.type,
         response: response.data,
       });
       
-      if (response.data?.success && response.data.artifact) {
-        console.log('✅ [Artifact] Artifact loaded:', {
-          id: response.data.artifact.id,
-          type: response.data.artifact.type,
-          title: response.data.artifact.title,
-          status: response.data.artifact.status,
+      if (response.data?.success && response.data.collateral) {
+        console.log('✅ [Collateral] Collateral loaded:', {
+          id: response.data.collateral.id,
+          type: response.data.collateral.type,
+          title: response.data.collateral.title,
+          status: response.data.collateral.status,
         });
         
-        setArtifact(response.data.artifact);
+        setCollateral(response.data.collateral);
         setWorkPackageItem(response.data.workPackageItem);
         
-        console.log('✅ [Artifact] Load complete!');
+        console.log('✅ [Collateral] Load complete!');
       } else {
-        console.warn('⚠️ [Artifact] No artifact in response');
+        console.warn('⚠️ [Collateral] No collateral in response');
       }
     } catch (error) {
-      console.error('❌ [Artifact] Error loading artifact:', error);
-      console.error('❌ [Artifact] Error details:', {
+      console.error('❌ [Collateral] Error loading collateral:', error);
+      console.error('❌ [Collateral] Error details:', {
         message: error.message,
         response: error.response?.data,
         status: error.response?.status,
         stack: error.stack,
       });
     } finally {
-      console.log('🏁 [Artifact] Load flow complete');
+      console.log('🏁 [Collateral] Load flow complete');
       setLoading(false);
     }
   };
@@ -86,17 +86,17 @@ export default function ArtifactView() {
       <div className="min-h-screen bg-gradient-to-br from-black via-gray-900 to-gray-800 flex items-center justify-center">
         <div className="text-center">
           <div className="animate-spin rounded-full h-16 w-16 border-b-4 border-gray-400 mx-auto mb-4" />
-          <p className="text-gray-300 text-xl">Loading artifact...</p>
+          <p className="text-gray-300 text-xl">Loading collateral...</p>
         </div>
       </div>
     );
   }
 
-  if (!artifact) {
+  if (!collateral) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-black via-gray-900 to-gray-800 flex items-center justify-center">
         <div className="text-center">
-          <h2 className="text-2xl font-bold text-white mb-4">Artifact not found</h2>
+          <h2 className="text-2xl font-bold text-white mb-4">Collateral not found</h2>
           <button
             onClick={() => router.push('/dashboard')}
             className="px-6 py-3 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 transition"
@@ -129,18 +129,18 @@ export default function ArtifactView() {
 
       {/* Main Content */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Artifact Header */}
+        {/* Collateral Header */}
         <div className="mb-8">
           <div className="flex items-center gap-3 mb-4">
             <h1 className="text-4xl font-bold text-white">
-              {artifact.title || `Artifact`}
+              {collateral.title || `Collateral`}
             </h1>
-            <StatusBadge status={artifact.status || 'not_started'} />
+            <StatusBadge status={collateral.status || 'not_started'} />
           </div>
           
           <div className="flex items-center gap-4 text-sm text-gray-400 mb-4">
             <span className="px-3 py-1 rounded-full bg-gray-700 text-gray-300">
-              {artifact.type}
+              {collateral.type}
             </span>
             {workPackageItem && (
               <span className="text-gray-500">
@@ -154,12 +154,12 @@ export default function ArtifactView() {
           )}
         </div>
 
-        {/* Artifact Content */}
+        {/* Collateral Content */}
         <div className="bg-gray-900 border border-gray-700 rounded-lg p-6">
-          {artifact.contentJson ? (
+          {collateral.contentJson ? (
             <div className="prose prose-invert max-w-none">
               <pre className="bg-gray-800 border border-gray-700 rounded-lg p-4 text-sm text-gray-300 overflow-auto">
-                {JSON.stringify(artifact.contentJson, null, 2)}
+                {JSON.stringify(collateral.contentJson, null, 2)}
               </pre>
             </div>
           ) : (
@@ -170,22 +170,22 @@ export default function ArtifactView() {
         </div>
 
         {/* Review Status */}
-        {(artifact.reviewRequestedAt || artifact.reviewCompletedAt) && (
+        {(collateral.reviewRequestedAt || collateral.reviewCompletedAt) && (
           <div className="mt-6 bg-gray-900 border border-gray-700 rounded-lg p-6">
             <h3 className="text-lg font-semibold text-white mb-4">Review Status</h3>
             <div className="space-y-2 text-sm text-gray-400">
-              {artifact.reviewRequestedAt && (
+              {collateral.reviewRequestedAt && (
                 <p>
-                  Review requested: {new Date(artifact.reviewRequestedAt).toLocaleDateString('en-US', {
+                  Review requested: {new Date(collateral.reviewRequestedAt).toLocaleDateString('en-US', {
                     year: 'numeric',
                     month: 'long',
                     day: 'numeric',
                   })}
                 </p>
               )}
-              {artifact.reviewCompletedAt && (
+              {collateral.reviewCompletedAt && (
                 <p>
-                  Review completed: {new Date(artifact.reviewCompletedAt).toLocaleDateString('en-US', {
+                  Review completed: {new Date(collateral.reviewCompletedAt).toLocaleDateString('en-US', {
                     year: 'numeric',
                     month: 'long',
                     day: 'numeric',

@@ -5,6 +5,15 @@ import { useRouter } from 'next/navigation';
 import { auth } from '@/lib/firebase';
 import Image from 'next/image';
 import api from '@/lib/api';
+import StatusBadge from '@/app/components/StatusBadge';
+import DeliverableItemCard from '@/app/components/DeliverableItemCard';
+import {
+  computeDashboardStats,
+  getNeedsReviewItems,
+  getPhaseData,
+  computeDashboardCTA,
+} from '@/lib/services/WorkPackageDashboardService';
+import { mapItemStatus } from '@/lib/services/StatusMapperService';
 
 /**
  * Dashboard = Hydration Brain (MVP1)
@@ -19,7 +28,7 @@ import api from '@/lib/api';
  * UI Behavior:
  * - If no workPackage: "Hi Joel 👋 Your engagement is being prepared."
  * - If workPackage exists: Show title and deliverables list
- * - Link to /work/[artifactId] using first artifact
+ * - Link to /work/[collateralId] using first workCollateral
  */
 export default function ClientPortalDashboard() {
   const router = useRouter();
@@ -85,48 +94,74 @@ export default function ClientPortalDashboard() {
                 setContactName(firstName.charAt(0).toUpperCase() + firstName.slice(1));
               }
 
-              // Second hydration: Get full company object with workPackages
-              // Engagement endpoint uses contactCompanyId to hydrate company
-              // Company object will have workPackages array with workPackageId
+              // Dashboard endpoint - optimized for dashboard view only
+              // Returns: stats, needsReviewItems, currentPhase items only (not all items/phases)
               const apiUrl = storedWorkPackageId 
-                ? `/api/client/work?workPackageId=${storedWorkPackageId}`
-                : '/api/client/work';
+                ? `/api/client/work/dashboard?workPackageId=${storedWorkPackageId}`
+                : '/api/client/work/dashboard';
               
               console.log('🌐 [Dashboard] Calling API:', apiUrl);
-              const engagementResponse = await api.get(apiUrl);
+              const dashboardResponse = await api.get(apiUrl);
               
               console.log('✅ [Dashboard] API Response received:', {
-                success: engagementResponse.data?.success,
-                hasWorkPackage: !!engagementResponse.data?.workPackage,
-                workPackageId: engagementResponse.data?.workPackageId,
-                hasCompany: !!engagementResponse.data?.company,
-                responseData: engagementResponse.data,
+                success: dashboardResponse.data?.success,
+                hasWorkPackage: !!dashboardResponse.data?.workPackage,
+                stats: dashboardResponse.data?.stats,
+                needsReviewCount: dashboardResponse.data?.needsReviewItems?.length || 0,
+                hasCurrentPhase: !!dashboardResponse.data?.currentPhase,
               });
            
-              if (engagementResponse.data?.success) {
+              if (dashboardResponse.data?.success) {
                 console.log('✅ [Dashboard] Hydration successful!');
-                console.log('📊 [Dashboard] Work Package:', engagementResponse.data.workPackage);
                 
-                setWorkPackage(engagementResponse.data.workPackage);
+                // Reconstruct workPackage object for compatibility with existing components
+                const wp = dashboardResponse.data.workPackage;
+                const stats = dashboardResponse.data.stats;
+                const needsReviewItems = dashboardResponse.data.needsReviewItems || [];
+                const currentPhase = dashboardResponse.data.currentPhase;
+                
+                // Reconstruct items array (only needsReview + currentPhase items for display)
+                const items = [...needsReviewItems];
+                if (currentPhase?.items) {
+                  // Add current phase items that aren't already in needsReviewItems
+                  currentPhase.items.forEach(item => {
+                    if (!items.find(i => i.id === item.id)) {
+                      items.push(item);
+                    }
+                  });
+                }
+                
+                // Reconstruct phases array (only current phase with items)
+                const phases = currentPhase ? [{
+                  ...currentPhase,
+                  items: currentPhase.items || [],
+                }] : [];
+                
+                setWorkPackage({
+                  ...wp,
+                  stats, // Add stats to workPackage for easy access
+                  items,
+                  phases,
+                  nextPhase: dashboardResponse.data.nextPhase,
+                  needsReviewItems, // Keep separate for easy access
+                  _dashboardData: dashboardResponse.data, // Store full dashboard response
+                });
                 
                 // Store workPackageId from response
-                const wpId = engagementResponse.data.workPackageId || 
-                            engagementResponse.data.workPackage?.id ||
-                            engagementResponse.data.company?.workPackageId ||
-                            storedWorkPackageId;
+                const wpId = dashboardResponse.data.workPackageId || wp?.id || storedWorkPackageId;
                 if (wpId) {
                   console.log('💾 [Dashboard] Storing workPackageId:', wpId);
                   localStorage.setItem('clientPortalWorkPackageId', wpId);
                 }
                 
                 // Store company info for display
-                if (engagementResponse.data.company) {
-                  setContactName(engagementResponse.data.company.companyName || contactName);
+                if (dashboardResponse.data.company) {
+                  setContactName(dashboardResponse.data.company.companyName || contactName);
                 }
                 
-                console.log('✅ [Dashboard] Hydration complete - work package set in state');
+                console.log('✅ [Dashboard] Hydration complete - dashboard data set in state');
               } else {
-                console.warn('⚠️ [Dashboard] API returned success:false', engagementResponse.data);
+                console.warn('⚠️ [Dashboard] API returned success:false', dashboardResponse.data);
               }
 
           // Billing removed - refactoring in progress
@@ -151,18 +186,6 @@ export default function ClientPortalDashboard() {
 
     return () => unsubscribe();
   }, [router]);
-
-  // Get first artifact ID for linking
-  const getFirstArtifactId = () => {
-    if (!workPackage || !workPackage.items) return null;
-    
-    for (const item of workPackage.items) {
-      if (item.artifacts && item.artifacts.length > 0) {
-        return item.artifacts[0].id;
-      }
-    }
-    return null;
-  };
 
   if (loading) {
     return (
@@ -276,59 +299,217 @@ export default function ClientPortalDashboard() {
               </div>
             )}
 
-            {/* Deliverables List - Flatten from phases */}
-            <div className="bg-gray-900 border border-gray-700 rounded-lg">
-              <div className="p-6 border-b border-gray-700">
-                <h3 className="text-lg font-semibold text-white">Deliverables</h3>
+            {/* Section A - Stats */}
+            {(() => {
+              // Use stats from API (computed server-side) or compute if not available
+              const totals = workPackage.stats || computeDashboardStats(workPackage);
+              
+              return (
+                <div className="mb-8 grid grid-cols-2 gap-4 sm:grid-cols-4">
+                  <div className="bg-gray-900 border border-gray-700 rounded-lg p-4">
+                    <div className="text-sm text-gray-400 mb-1">Total Deliverables</div>
+                    <div className="text-2xl font-bold text-white">{totals.total}</div>
+                  </div>
+                  <div className="bg-gray-900 border border-gray-700 rounded-lg p-4">
+                    <div className="text-sm text-gray-400 mb-1">Completed</div>
+                    <div className="text-2xl font-bold text-green-400">{totals.completed}</div>
+                  </div>
+                  <div className="bg-gray-900 border border-gray-700 rounded-lg p-4">
+                    <div className="text-sm text-gray-400 mb-1">In Progress</div>
+                    <div className="text-2xl font-bold text-blue-400">{totals.inProgress}</div>
+                  </div>
+                  <div className="bg-gray-900 border border-gray-700 rounded-lg p-4">
+                    <div className="text-sm text-gray-400 mb-1">Needs Review</div>
+                    <div className="text-2xl font-bold text-yellow-400">{totals.needsReview}</div>
+                  </div>
+                </div>
+              );
+            })()}
+
+            {/* Section B - Big CTA Button */}
+            {(() => {
+              // Use stats from API or compute if not available
+              const totals = workPackage.stats || computeDashboardStats(workPackage);
+              const cta = computeDashboardCTA(totals);
+              const wpId = workPackage.id || localStorage.getItem('clientPortalWorkPackageId');
+              
+              return (
+                <div className="mb-8 text-center">
+                  <button
+                    onClick={() => router.push(`/client/work/${wpId}`)}
+                    className="px-8 py-4 bg-gradient-to-r from-blue-600 to-purple-600 text-white font-semibold text-lg rounded-lg hover:from-blue-700 hover:to-purple-700 transition shadow-lg"
+                  >
+                    {cta}
+                  </button>
+                </div>
+              );
+            })()}
+
+            {/* Section C - Priorities This Week */}
+            {workPackage.prioritySummary && (
+              <div className="mb-8 bg-gradient-to-r from-purple-900/20 to-blue-900/20 border border-purple-700/50 rounded-lg p-6">
+                <h3 className="text-lg font-semibold text-white mb-2">Priorities This Week</h3>
+                <p className="text-gray-300">{workPackage.prioritySummary}</p>
               </div>
-              <div className="p-6">
-                {(() => {
-                  // Flatten items from all phases
-                  const allItems = workPackage.phases?.flatMap(phase => phase.items || []) || [];
-                  
-                  if (allItems.length > 0) {
-                    return (
-                      <div className="space-y-4">
-                        {allItems.map((item) => {
-                          const wpId = localStorage.getItem('clientPortalWorkPackageId');
-                          const deliverableName = item.deliverableLabel || item.deliverableName || item.itemLabel || 'Deliverable';
-                          
+            )}
+
+            {/* Section D - Needs Your Review */}
+            {(() => {
+              // Use needsReviewItems from API (only those items) or compute if not available
+              const needsReviewItems = workPackage.needsReviewItems || getNeedsReviewItems(workPackage);
+              
+              if (needsReviewItems.length === 0) {
+                return (
+                  <div className="mb-8 bg-green-900/20 border border-green-700/50 rounded-lg p-6">
+                    <div className="flex items-center gap-3 mb-2">
+                      <svg className="h-5 w-5 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                      <h3 className="text-lg font-semibold text-white">Needs Your Review</h3>
+                    </div>
+                    <p className="text-gray-300">You're all set! No items need your review at this time.</p>
+                  </div>
+                );
+              }
+
+              return (
+                <div className="mb-8 bg-yellow-900/20 border border-yellow-700/50 rounded-lg p-6">
+                  <div className="flex items-center gap-3 mb-4">
+                    <svg className="h-5 w-5 text-yellow-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                    </svg>
+                    <h3 className="text-lg font-semibold text-white">Needs Your Review</h3>
+                    <span className="px-2 py-1 bg-yellow-600/50 text-yellow-200 text-xs font-semibold rounded-full">
+                      {needsReviewItems.length}
+                    </span>
+                  </div>
+                  <div className="space-y-3">
+                    {needsReviewItems.map((item) => (
+                      <div
+                        key={item.id}
+                        className="bg-gray-900/50 border border-yellow-700/30 rounded-lg p-4"
+                      >
+                        <DeliverableItemCard item={item} />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              );
+            })()}
+
+            {/* Section E - Current Phase */}
+            {(() => {
+              // Use currentPhase from dashboard API (already optimized)
+              const dashboardData = workPackage._dashboardData || {};
+              const currentPhase = dashboardData.currentPhase || workPackage.phases?.[0];
+              const currentPhaseItems = currentPhase?.items || [];
+              const wpId = workPackage.id || localStorage.getItem('clientPortalWorkPackageId');
+              const currentPhaseIndex = dashboardData.currentPhaseIndex ?? 0;
+
+              if (!currentPhase) {
+                return (
+                  <div className="mb-8 bg-gray-900 border border-gray-700 rounded-lg p-6">
+                    <p className="text-gray-400 text-center">No phases yet</p>
+                  </div>
+                );
+              }
+
+              // Determine current phase status from items
+              const hasInProgress = currentPhaseItems.some(item => {
+                const status = mapItemStatus(item, item.workCollateral || []);
+                return status === 'IN_PROGRESS';
+              });
+              const allCompleted = currentPhaseItems.length > 0 && currentPhaseItems.every(item => {
+                const status = mapItemStatus(item, item.workCollateral || []);
+                return status === 'COMPLETED';
+              });
+              const phaseStatus = allCompleted ? 'completed' : hasInProgress ? 'in_progress' : 'not_started';
+
+              return (
+                <div className="mb-8 bg-gray-900 border border-gray-700 rounded-lg">
+                  <div className="p-6 border-b border-gray-700">
+                    <div className="flex items-center gap-3">
+                      <h3 className="text-lg font-semibold text-white">Current Phase</h3>
+                      <StatusBadge status={phaseStatus} />
+                    </div>
+                    <div className="mt-2">
+                      <h4 className="text-base font-medium text-white">{currentPhase.name}</h4>
+                      {currentPhase.description && (
+                        <p className="text-sm text-gray-400 mt-1">{currentPhase.description}</p>
+                      )}
+                    </div>
+                  </div>
+                  <div className="p-6">
+                    {currentPhaseItems.length > 0 ? (
+                      <div className="space-y-3">
+                        {currentPhaseItems.map((item) => {
+                          const itemStatus = mapItemStatus(item, item.workCollateral || []);
+                          const statusClassName =
+                            itemStatus === 'COMPLETED'
+                              ? 'bg-green-900/20 border-green-700/50'
+                              : itemStatus === 'NEEDS_REVIEW'
+                              ? 'bg-yellow-900/20 border-yellow-700/50'
+                              : itemStatus === 'IN_PROGRESS'
+                              ? 'bg-blue-900/20 border-blue-700/50'
+                              : 'bg-gray-800 border-gray-700';
+
                           return (
                             <div
                               key={item.id}
-                              className="flex items-center justify-between p-4 border border-gray-700 rounded-lg bg-gray-800"
+                              className={`p-4 border rounded-lg transition ${statusClassName}`}
                             >
-                              <div className="flex-1">
-                                <h4 className="font-semibold text-white">{deliverableName}</h4>
-                                {item.deliverableDescription && (
-                                  <p className="text-sm text-gray-400 mt-1">{item.deliverableDescription}</p>
-                                )}
-                              </div>
-                              <div>
-                                {wpId ? (
-                                  <button
-                                    onClick={() => router.push(`/client/work/${wpId}`)}
-                                    className="px-4 py-2 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 transition"
-                                  >
-                                    View Project
-                                  </button>
-                                ) : (
-                                  <span className="px-4 py-2 text-gray-400 font-semibold">
-                                    Not Started
-                                  </span>
-                                )}
-                              </div>
+                              <DeliverableItemCard item={item} />
                             </div>
                           );
                         })}
                       </div>
-                    );
-                  } else {
-                    return <p className="text-gray-400 text-center py-8">No deliverables yet</p>;
-                  }
-                })()}
-              </div>
-            </div>
+                    ) : (
+                      <p className="text-gray-400 text-center py-4">No deliverables in this phase</p>
+                    )}
+                  </div>
+                </div>
+              );
+            })()}
+
+            {/* Section F - Next Phase Preview */}
+            {(() => {
+              const dashboardData = workPackage._dashboardData || {};
+              const nextPhase = dashboardData.nextPhase;
+              const wpId = workPackage.id || localStorage.getItem('clientPortalWorkPackageId');
+              const currentPhaseIndex = dashboardData.currentPhaseIndex ?? 0;
+
+              if (!nextPhase) {
+                return (
+                  <div className="mb-8 bg-gray-900 border border-gray-700 rounded-lg p-6">
+                    <h3 className="text-lg font-semibold text-white mb-4">All Phases</h3>
+                    <button
+                      onClick={() => router.push(`/client/work/${wpId}?phaseIndex=${currentPhaseIndex}`)}
+                      className="w-full px-4 py-3 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 transition shadow-lg"
+                    >
+                      See Full Project →
+                    </button>
+                  </div>
+                );
+              }
+
+              return (
+                <div className="mb-8 bg-gray-900 border border-gray-700 rounded-lg p-6">
+                  <h3 className="text-lg font-semibold text-white mb-2">Up Next</h3>
+                  <div className="mb-4">
+                    <h4 className="text-base font-medium text-white">{nextPhase.name}</h4>
+                    {nextPhase.description && (
+                      <p className="text-sm text-gray-400 mt-1">{nextPhase.description}</p>
+                    )}
+                  </div>
+                  <button
+                    onClick={() => router.push(`/client/work/${wpId}?phaseIndex=${currentPhaseIndex + 1}`)}
+                    className="w-full px-4 py-3 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 transition shadow-lg"
+                  >
+                    See Full Project →
+                  </button>
+                </div>
+              );
+            })()}
           </>
         )}
       </main>
