@@ -370,7 +370,7 @@ model WorkPackageItem {
   quantity           Int
   unitOfMeasure      String
   estimatedHoursEach Int
-  status             String @default("not_started")
+  status             WorkPackageItemStatus @default(NOT_STARTED)
 
   workCollateral WorkCollateral[]
 
@@ -397,7 +397,7 @@ model WorkCollateral {
   title       String?
   contentJson Json?
 
-  status String // DRAFT | IN_REVIEW | APPROVED | COMPLETED
+  status WorkCollateralStatus
 
   reviewRequestedAt DateTime?
   reviewCompletedAt DateTime?
@@ -410,4 +410,22 @@ model WorkCollateral {
   @@index([status])
   @@index([type])
   @@map("work_collateral")
+}
+
+enum WorkPackageItemStatus {
+  NOT_STARTED
+  IN_PROGRESS
+  IN_REVIEW
+  CHANGES_NEEDED
+  CHANGES_IN_PROGRESS
+  APPROVED
+}
+
+enum WorkCollateralStatus {
+  NOT_STARTED
+  IN_PROGRESS
+  IN_REVIEW
+  CHANGES_NEEDED
+  CHANGES_IN_PROGRESS
+  APPROVED
 }

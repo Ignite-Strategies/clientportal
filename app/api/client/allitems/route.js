@@ -134,17 +134,8 @@ export async function GET(request) {
       }
     }
 
-    // Step 5: Get all phases (metadata only)
-    const allPhases = await prisma.workPackagePhase.findMany({
-      where: { workPackageId: workPackage.id },
-      select: {
-        id: true,
-        name: true,
-        description: true,
-        position: true,
-      },
-      orderBy: { position: 'asc' },
-    });
+    // Step 5: Get all phases (with status) - used for current phase determination
+    // This will be replaced by phasesWithStatus in Step 8, but kept for now for compatibility
 
     // Step 6: Compute stats
     const stats = {
@@ -157,43 +148,39 @@ export async function GET(request) {
 
     allItems.forEach((item) => {
       const status = mapItemStatus(item, item.workCollateral || []);
-      if (status === "COMPLETED") stats.completed++;
+      if (status === "APPROVED") stats.completed++;
       else if (status === "IN_PROGRESS") stats.inProgress++;
-      else if (status === "NEEDS_REVIEW") stats.needsReview++;
+      else if (status === "IN_REVIEW") stats.needsReview++;
+      else if (status === "CHANGES_NEEDED") stats.needsReview++; // Changes needed also needs review
       else stats.notStarted++;
     });
 
     // Step 7: Get needs review items
     const needsReviewItems = allItems.filter((item) => {
       const status = mapItemStatus(item, item.workCollateral || []);
-      return status === "NEEDS_REVIEW";
+      return status === "IN_REVIEW" || status === "CHANGES_NEEDED";
     });
 
-    // Step 8: Determine current phase (first incomplete phase)
-    const isPhaseComplete = (phase) => {
-      const phaseItems = allItems.filter(item => item.workPackagePhaseId === phase.id);
-      if (phaseItems.length === 0) return false;
-      return phaseItems.every((item) => {
-        const status = mapItemStatus(item, item.workCollateral || []);
-        return status === "COMPLETED";
-      });
-    };
+    // Step 8: Get phase statuses from database
+    const phasesWithStatus = await prisma.workPackagePhase.findMany({
+      where: { workPackageId: workPackage.id },
+      select: {
+        id: true,
+        name: true,
+        description: true,
+        position: true,
+        status: true,
+      },
+      orderBy: { position: 'asc' },
+    });
 
-    let currentPhaseIndex = -1;
-    for (let i = 0; i < allPhases.length; i++) {
-      if (!isPhaseComplete(allPhases[i])) {
-        currentPhaseIndex = i;
-        break;
-      }
-    }
+    // Step 9: Determine current phase (first non-completed phase)
+    // Current phase = first phase that is not 'completed'
+    const currentPhase = phasesWithStatus.find(
+      (phase) => phase.status !== 'completed'
+    ) || null;
 
-    if (currentPhaseIndex === -1 && allPhases.length > 0) {
-      currentPhaseIndex = allPhases.length - 1; // All complete, show last
-    }
-
-    const currentPhase = currentPhaseIndex >= 0 ? allPhases[currentPhaseIndex] : null;
-
-    // Step 9: Get items for current phase only
+    // Step 10: Get items for current phase only
     let currentPhaseItems = [];
     if (currentPhase) {
       currentPhaseItems = allItems.filter(item => item.workPackagePhaseId === currentPhase.id);

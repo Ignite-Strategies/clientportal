@@ -284,7 +284,7 @@ export default function ClientPortalDashboard() {
               const totals = workPackage.stats || { total: 0, completed: 0, inProgress: 0, needsReview: 0, notStarted: 0 };
               
               return (
-                <div className="mb-8 grid grid-cols-2 gap-4 sm:grid-cols-4">
+                <div className="mb-8 grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
                   <div className="bg-gray-900 border border-gray-700 rounded-lg p-4">
                     <div className="text-sm text-gray-400 mb-1">Total Deliverables</div>
                     <div className="text-2xl font-bold text-white">{totals.total}</div>
@@ -300,6 +300,10 @@ export default function ClientPortalDashboard() {
                   <div className="bg-gray-900 border border-gray-700 rounded-lg p-4">
                     <div className="text-sm text-gray-400 mb-1">Needs Review</div>
                     <div className="text-2xl font-bold text-yellow-400">{totals.needsReview}</div>
+                  </div>
+                  <div className="bg-gray-900 border border-gray-700 rounded-lg p-4">
+                    <div className="text-sm text-gray-400 mb-1">Not Started</div>
+                    <div className="text-2xl font-bold text-gray-400">{totals.notStarted}</div>
                   </div>
                 </div>
               );
@@ -387,9 +391,9 @@ export default function ClientPortalDashboard() {
               );
 
               const phaseStatus =
-                phaseStatuses.includes("NEEDS_REVIEW") ? "needs_review" :
-                phaseStatuses.includes("IN_PROGRESS") ? "in_progress" :
-                phaseStatuses.every(s => s === "COMPLETED") ? "completed" :
+                phaseStatuses.includes("IN_REVIEW") || phaseStatuses.includes("CHANGES_NEEDED") ? "in_review" :
+                phaseStatuses.includes("IN_PROGRESS") || phaseStatuses.includes("CHANGES_IN_PROGRESS") ? "in_progress" :
+                phaseStatuses.every(s => s === "APPROVED") ? "approved" :
                 "not_started";
 
               return (
