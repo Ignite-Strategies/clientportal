@@ -9,6 +9,7 @@ import StatusBadge from '@/app/components/StatusBadge';
 import DeliverableItemCard from '@/app/components/DeliverableItemCard';
 import { computeDashboardCTA } from '@/lib/services/WorkPackageDashboardService';
 import { mapItemStatus } from '@/lib/services/StatusMapperService';
+import { adaptDashboardPayload } from '@/lib/adapters/DashboardPayloadAdapter';
 
 /**
  * Dashboard = Hydration Brain (MVP1)
@@ -106,32 +107,55 @@ export default function ClientPortalDashboard() {
                 stats: allItemsResponse.data?.stats,
               });
            
-              if (allItemsResponse.data?.success && allItemsResponse.data.workPackage) {
-                console.log('✅ [Dashboard] Hydration successful!');
+              if (allItemsResponse.data?.success) {
+                console.log('✅ [Dashboard] API response received, adapting payload...');
                 
-                const wp = allItemsResponse.data.workPackage;
-                const stats = allItemsResponse.data.stats;
-                const needsReviewItems = allItemsResponse.data.needsReviewItems || [];
-                const allItems = allItemsResponse.data.allItems || []; // ALL items from API
-                const currentPhase = allItemsResponse.data.currentPhase;
-                
-                // Use ALL items from API (dashboard should show all items)
-                const items = allItems.length > 0 ? allItems : [...needsReviewItems, ...(currentPhase?.items || [])];
-                
-                const phases = currentPhase ? [currentPhase] : [];
-                
-                setWorkPackage({
-                  ...wp,
-                  stats,
-                  needsReviewItems,
-                  items, // ALL items (not just needs review + current phase)
-                  phases,
-                  _dashboardData: allItemsResponse.data,
-                });
-                
-                console.log('✅ [Dashboard] Hydration complete - dashboard data set in state');
+                try {
+                  // Adapt server payload to client-safe format
+                  const adapted = adaptDashboardPayload(allItemsResponse.data);
+                  
+                  // Set work package state with adapted data
+                  setWorkPackage({
+                    ...adapted.workPackage,
+                    stats: adapted.stats,
+                    needsReviewItems: adapted.needsReviewItems,
+                    items: adapted.items, // ALL items
+                    phases: adapted.phases,
+                    currentPhase: adapted.currentPhase,
+                    contact: adapted.contact,
+                    _dashboardData: allItemsResponse.data, // Keep raw data for debugging
+                  });
+                  
+                  console.log('✅ [Dashboard] Hydration complete - adapted payload set in state');
+                } catch (error) {
+                  console.error('❌ [Dashboard] Error adapting payload:', error);
+                  // Still set a minimal work package to prevent UI breakage
+                  setWorkPackage({
+                    id: null,
+                    title: 'Error Loading Work Package',
+                    description: 'There was an error loading your work package. Please refresh the page.',
+                    stats: { total: 0, completed: 0, inProgress: 0, needsReview: 0, notStarted: 0 },
+                    needsReviewItems: [],
+                    items: [],
+                    phases: [],
+                    currentPhase: null,
+                    _error: error.message,
+                  });
+                }
               } else {
-                console.warn('⚠️ [Dashboard] No work package found or API error');
+                console.warn('⚠️ [Dashboard] API response indicates failure:', allItemsResponse.data?.error);
+                // Don't break the UI - show error message but keep structure
+                setWorkPackage({
+                  id: null,
+                  title: 'Unable to Load Work Package',
+                  description: allItemsResponse.data?.error || 'Please refresh the page or contact support.',
+                  stats: { total: 0, completed: 0, inProgress: 0, needsReview: 0, notStarted: 0 },
+                  needsReviewItems: [],
+                  items: [],
+                  phases: [],
+                  currentPhase: null,
+                  _error: allItemsResponse.data?.error || 'Unknown error',
+                });
               }
 
           // Billing removed - refactoring in progress
@@ -366,9 +390,8 @@ export default function ClientPortalDashboard() {
 
             {/* Section E - Current Phase */}
             {(() => {
-              // Use currentPhase from dashboard API (already optimized)
-              const dashboardData = workPackage._dashboardData || {};
-              const currentPhase = dashboardData.currentPhase || workPackage.phases?.[0];
+              // Use currentPhase from adapted workPackage (from adapter)
+              const currentPhase = workPackage.currentPhase || workPackage.phases?.[0];
               const currentPhaseItems = currentPhase?.items || [];
 
               if (!currentPhase) {
@@ -379,16 +402,12 @@ export default function ClientPortalDashboard() {
                 );
               }
 
-              // Determine current phase status from items
-              const phaseStatuses = currentPhaseItems.map(
-                i => mapItemStatus(i, i.workCollateral || [])
-              );
-
-              const phaseStatus =
-                phaseStatuses.includes("IN_REVIEW") || phaseStatuses.includes("CHANGES_NEEDED") ? "in_review" :
-                phaseStatuses.includes("IN_PROGRESS") || phaseStatuses.includes("CHANGES_IN_PROGRESS") ? "in_progress" :
-                phaseStatuses.every(s => s === "APPROVED") ? "approved" :
-                "not_started";
+              // Use phase status directly from database (already normalized by adapter)
+              // Current phase status is already set by adapter from phase.status field
+              const phaseStatus = currentPhase.status || "NOT_STARTED";
+              
+              // Normalize to lowercase for UI display
+              const phaseStatusLower = phaseStatus.toLowerCase();
 
               return (
                 <div className="mb-8 bg-gray-900 border border-gray-700 rounded-lg">

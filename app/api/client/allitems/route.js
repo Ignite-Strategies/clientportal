@@ -150,15 +150,15 @@ export async function GET(request) {
       const status = mapItemStatus(item, item.workCollateral || []);
       if (status === "APPROVED") stats.completed++;
       else if (status === "IN_PROGRESS") stats.inProgress++;
-      else if (status === "IN_REVIEW") stats.needsReview++;
-      else if (status === "CHANGES_NEEDED") stats.needsReview++; // Changes needed also needs review
+      else if (status === "NEEDS_REVIEW") stats.needsReview++;
+      else if (status === "CHANGES_IN_PROGRESS") stats.inProgress++; // Changes in progress counts as in progress
       else stats.notStarted++;
     });
 
-    // Step 7: Get needs review items
+    // Step 7: Get needs review items (only NEEDS_REVIEW status)
     const needsReviewItems = allItems.filter((item) => {
       const status = mapItemStatus(item, item.workCollateral || []);
-      return status === "IN_REVIEW" || status === "CHANGES_NEEDED";
+      return status === "NEEDS_REVIEW";
     });
 
     // Step 8: Get phases with status (if field exists in schema)
