@@ -130,7 +130,13 @@ export async function GET(request) {
         // Add empty workCollateral array to each item for compatibility
         allItems = allItems.map(item => ({ ...item, workCollateral: [] }));
       } else {
-        throw error; // Re-throw if it's a different error
+        // Log error details before re-throwing
+        console.error('❌ Error querying WorkPackageItems:', {
+          code: error.code,
+          meta: error.meta,
+          message: error.message,
+        });
+        throw error;
       }
     }
 
@@ -177,23 +183,34 @@ export async function GET(request) {
         orderBy: { position: 'asc' },
       });
     } catch (error) {
-      // If status field doesn't exist, get phases without status and derive from items
-      console.warn('⚠️ WorkPackagePhase.status field does not exist in schema, deriving from items');
-      phasesWithStatus = await prisma.workPackagePhase.findMany({
-        where: { workPackageId: workPackage.id },
-        select: {
-          id: true,
-          name: true,
-          description: true,
-          position: true,
-        },
-        orderBy: { position: 'asc' },
-      });
-      // Add status: null to each phase (will derive from items)
-      phasesWithStatus = phasesWithStatus.map(phase => ({
-        ...phase,
-        status: null, // Will derive from items
-      }));
+      // Handle P2022 (column doesn't exist) or P2021 (table doesn't exist)
+      if ((error.code === 'P2022' && error.meta?.column?.includes('status')) || 
+          (error.code === 'P2021' && error.meta?.table === 'work_package_phases')) {
+        console.warn('⚠️ WorkPackagePhase.status field does not exist, querying without it');
+        phasesWithStatus = await prisma.workPackagePhase.findMany({
+          where: { workPackageId: workPackage.id },
+          select: {
+            id: true,
+            name: true,
+            description: true,
+            position: true,
+          },
+          orderBy: { position: 'asc' },
+        });
+        // Add status: null to each phase (will derive from items)
+        phasesWithStatus = phasesWithStatus.map(phase => ({
+          ...phase,
+          status: null, // Will derive from items
+        }));
+      } else {
+        // Log error details before re-throwing
+        console.error('❌ Unexpected error querying WorkPackagePhase:', {
+          code: error.code,
+          meta: error.meta,
+          message: error.message,
+        });
+        throw error;
+      }
     }
 
     // Step 9: Determine current phase (first non-completed phase)
@@ -265,12 +282,22 @@ export async function GET(request) {
       },
     });
   } catch (error) {
-    console.error('❌ Get allitems error:', error);
+    // Comprehensive error logging
+    console.error('❌ Get allitems error:', {
+      code: error.code,
+      meta: error.meta,
+      message: error.message,
+      stack: error.stack,
+    });
+    
+    // Return detailed error for debugging (remove details in production)
     return NextResponse.json(
       {
         success: false,
         error: 'Failed to get dashboard data',
         details: error.message,
+        code: error.code,
+        meta: error.meta,
       },
       { status: 500 },
     );
