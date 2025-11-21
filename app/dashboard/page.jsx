@@ -7,8 +7,6 @@ import Image from 'next/image';
 import api from '@/lib/api';
 import StatusBadge from '@/app/components/StatusBadge';
 import DeliverableItemCard from '@/app/components/DeliverableItemCard';
-import { computeDashboardCTA } from '@/lib/services/WorkPackageDashboardService';
-import { mapItemStatus } from '@/lib/services/StatusMapperService';
 import { adaptDashboardPayload } from '@/lib/adapters/DashboardPayloadAdapter';
 
 /**
@@ -327,24 +325,6 @@ export default function ClientPortalDashboard() {
               );
             })()}
 
-            {/* Section B - Big CTA Button */}
-            {(() => {
-              // Use stats from API or compute if not available
-              const totals = workPackage.stats || { total: 0, completed: 0, inProgress: 0, needsReview: 0, notStarted: 0 };
-              const cta = computeDashboardCTA(totals);
-              const wpId = workPackage.id; // Use workPackage.id from API response only
-              
-              return (
-                <div className="mb-8 text-center">
-                  <button
-                    onClick={() => router.push(`/client/work/${wpId}`)}
-                    className="px-8 py-4 bg-gradient-to-r from-blue-600 to-purple-600 text-white font-semibold text-lg rounded-lg hover:from-blue-700 hover:to-purple-700 transition shadow-lg"
-                  >
-                    {cta}
-                  </button>
-                </div>
-              );
-            })()}
 
             {/* Section C - Consultant Priorities This Week */}
             {workPackage.prioritySummary && (
@@ -388,77 +368,59 @@ export default function ClientPortalDashboard() {
               );
             })()}
 
-            {/* Section E - Current Phase */}
+            {/* Section E - Current Phase (Simple List) */}
             {(() => {
               // Use currentPhase from adapted workPackage (from adapter)
               const currentPhase = workPackage.currentPhase || workPackage.phases?.[0];
-              const currentPhaseItems = currentPhase?.items || [];
 
               if (!currentPhase) {
                 return (
                   <div className="mb-8 bg-gray-900 border border-gray-700 rounded-lg p-6">
-                    <p className="text-gray-400 text-center">No phases yet</p>
+                    <p className="text-gray-400 text-center">No phase information available.</p>
                   </div>
                 );
               }
 
-              // Use phase status directly from database (already normalized by adapter)
-              // Current phase status is already set by adapter from phase.status field
               const phaseStatus = currentPhase.status || "NOT_STARTED";
-              
-              // Normalize to lowercase for UI display
-              const phaseStatusLower = phaseStatus.toLowerCase();
 
               return (
-                <div className="mb-8 bg-gray-900 border border-gray-700 rounded-lg">
-                  <div className="p-6 border-b border-gray-700">
-                    <div className="flex items-center gap-3">
-                      <h3 className="text-lg font-semibold text-white">Current Phase</h3>
-                      <StatusBadge status={phaseStatus} />
-                    </div>
-                    <div className="mt-2">
-                      <h4 className="text-base font-medium text-white">{currentPhase.name}</h4>
-                      {currentPhase.description && (
-                        <p className="text-sm text-gray-400 mt-1">{currentPhase.description}</p>
-                      )}
-                    </div>
+                <div className="mb-8 bg-gray-900 border border-gray-700 rounded-lg p-6">
+                  <div className="flex items-center gap-3 mb-2">
+                    <h3 className="text-lg font-semibold text-white">Current Phase</h3>
+                    <StatusBadge status={phaseStatus} />
                   </div>
-                  <div className="p-6">
-                    {currentPhaseItems.length > 0 ? (
-                      <div className="space-y-4">
-                        {currentPhaseItems.map(item => (
-                          <div
-                            key={item.id}
-                            className="flex flex-col bg-gray-900 border border-gray-700 rounded-lg p-4"
-                          >
-                            <div className="flex items-center justify-between">
-                              <h4 className="text-white font-medium">{item.deliverableLabel}</h4>
-                              <StatusBadge status={mapItemStatus(item, item.workCollateral || [])} />
-                            </div>
 
-                            {item.deliverableDescription && (
-                              <p className="text-gray-400 text-sm mt-1">
-                                {item.deliverableDescription}
-                              </p>
-                            )}
-                          </div>
+                  {currentPhase ? (
+                    <>
+                      <h4 className="text-xl text-white">{currentPhase.name}</h4>
+                      {currentPhase.description && (
+                        <p className="text-gray-400 mt-2 mb-4">{currentPhase.description}</p>
+                      )}
+
+                      {/* SIMPLE LIST OF ITEMS */}
+                      <ul className="space-y-1 mt-2">
+                        {(currentPhase.items || []).map(item => (
+                          <li key={item.id} className="flex items-center justify-between">
+                            <span className="text-gray-300">{item.deliverableLabel}</span>
+                            <StatusBadge status={item.status} />
+                          </li>
                         ))}
-                      </div>
-                    ) : (
-                      <p className="text-gray-400 text-center py-4">No deliverables in this phase</p>
-                    )}
-                  </div>
+                      </ul>
+                    </>
+                  ) : (
+                    <p className="text-gray-400">No phase information available.</p>
+                  )}
                 </div>
               );
             })()}
 
-            {/* View Full Project Footer Button */}
+            {/* See Full Project CTA */}
             <div className="mt-12 text-center">
               <button
                 onClick={() => router.push(`/client/work/${workPackage.id}`)}
                 className="px-6 py-3 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 transition shadow-lg"
               >
-                View Full Project →
+                See Full Project →
               </button>
             </div>
           </>
